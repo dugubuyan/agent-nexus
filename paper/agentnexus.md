@@ -6,6 +6,8 @@ GitHub: [github.com/dugubuyan](https://github.com/dugubuyan) · X: [@dugubuyan](
 
 *April 2026*
 
+**Keywords**: multi-agent systems, LLM agents, software engineering, service-oriented architecture, publish-subscribe, Model Context Protocol, lifecycle management
+
 ---
 
 ## Abstract
@@ -57,6 +59,37 @@ The publish-subscribe pattern [Eugster et al., 2003] is well-established in dist
 ### 3.1 Core Abstractions
 
 AgentNexus organizes the world around four abstractions:
+
+**Figure 1** shows the overall system structure. A Project Space contains multiple Sub-Projects (services), each owning a set of versioned Documents. Subscriptions connect sub-projects across service boundaries, and the notification queue delivers change events to subscribers.
+
+```mermaid
+graph TB
+    subgraph PS["Project Space (jiuyan-main)"]
+        subgraph SP1["Sub-Project A (search-service)"]
+            D1[requirement v3]
+            D2[api v5]
+            D3[design v2]
+        end
+        subgraph SP2["Sub-Project B (search-admin-frontend)"]
+            D4[requirement v2]
+            D5[design v1]
+        end
+        subgraph SP3["Sub-Project C (ops-service)"]
+            D6[config/prod v4]
+        end
+        SUB1["Subscription: B → A/api"]
+        SUB2["Subscription: B → A/requirement"]
+        NOTIF["Notification Queue"]
+    end
+
+    SP1 -->|push_document| D1
+    SP1 -->|push_document| D2
+    D2 -->|triggers| NOTIF
+    SUB1 -->|matches| NOTIF
+    NOTIF -->|get_my_updates_with_context| SP2
+```
+
+*Figure 1: AgentNexus data model. Sub-projects own documents; subscriptions define cross-service dependencies; notifications propagate changes to subscribers.*
 
 **Project Space**: The top-level isolation unit, corresponding to a large project or product. All sub-projects, documents, and subscriptions belong to a space.
 
@@ -135,7 +168,7 @@ AgentNexus is implemented in Python using:
 
 The system runs as a single persistent process, exposing the MCP endpoint at `http://0.0.0.0:10086/mcp`. The FileWatcherService monitors a `/docs/` directory, automatically ingesting Markdown files written by agents as draft documents.
 
-The full implementation includes 191 unit and property-based tests using the Hypothesis framework.
+The full implementation includes 191 unit and property-based tests using the Hypothesis framework. The source code is available at [https://github.com/dugubuyan/agent-nexus](https://github.com/dugubuyan/agent-nexus).
 
 ---
 
@@ -146,7 +179,28 @@ We deployed AgentNexus to coordinate two services in a financial information ret
 - **search-service**: A Python/FastAPI backend providing full-text search over Elasticsearch, with admin endpoints for document review, pipeline monitoring, and sensitive word management.
 - **search-admin-frontend**: A React/Ant Design management console consuming the search-service admin APIs.
 
-The frontend sub-project subscribes to the search-service's `api` and `requirement` documents. When the backend team implements a new endpoint (`PUT /admin/docs/{doc_id}` for in-place document editing), the workflow proceeds as follows:
+The frontend sub-project subscribes to the search-service's `api` and `requirement` documents. **Figure 2** illustrates the end-to-end coordination flow when the backend implements a new endpoint.
+
+```mermaid
+sequenceDiagram
+    participant BA as Backend Agent<br/>(search-service)
+    participant AN as AgentNexus
+    participant FA as Frontend Agent<br/>(search-admin-frontend)
+
+    BA->>AN: push_document(api, v2)<br/>"PUT /admin/docs/{id} added"
+    AN->>AN: compute diff(v1→v2)<br/>generate notification
+    FA->>AN: get_my_updates_with_context()
+    AN-->>FA: {diff, latest_content, update_id}
+    Note over FA: diff shows new endpoint<br/>latest_content has full spec
+    FA->>FA: remove mock implementation<br/>integrate real endpoint
+    FA->>AN: push_document(requirement, v2)<br/>"remove 'not yet implemented'"
+    FA->>AN: ack_update(update_id)
+    AN->>AN: mark notification read
+```
+
+*Figure 2: End-to-end coordination flow. The backend agent pushes an updated API document; AgentNexus delivers a diff-aware notification; the frontend agent makes targeted code changes and acknowledges.*
+
+When the backend team implements a new endpoint (`PUT /admin/docs/{doc_id}` for in-place document editing), the workflow proceeds as follows:
 
 1. The backend agent updates `search-service/api` via `push_document`.
 2. AgentNexus generates a notification for `search-admin-frontend`.
