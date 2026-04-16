@@ -158,7 +158,7 @@ AgentNexus is implemented in Python using:
 
 The system runs as a single persistent process, exposing the MCP endpoint at `http://0.0.0.0:10086/mcp`. The FileWatcherService monitors a `/docs/` directory, automatically ingesting Markdown files written by agents as draft documents.
 
-The full implementation includes 191 unit and property-based tests using the Hypothesis framework. The source code is available at [https://github.com/dugubuyan/agent-nexus](https://github.com/dugubuyan/agent-nexus).
+The full implementation includes 191 unit and property-based tests using the Hypothesis framework. The source code is available at [https://github.com/dugubuyan/agent-nexus](https://github.com/dugubuyan/agent-nexus) and the paper is archived at [https://doi.org/10.5281/zenodo.19601563](https://doi.org/10.5281/zenodo.19601563).
 
 ---
 
@@ -241,3 +241,21 @@ We have presented AgentNexus, a document exchange architecture that coordinates 
 - Anthropic (2024). Model Context Protocol. *anthropic.com/news/model-context-protocol*.
 - Eugster, P. et al. (2003). The Many Faces of Publish/Subscribe. *ACM Computing Surveys*.
 - RTADev (2025). Intention Aligned Multi-Agent Framework for Software Development. *ACL 2025 Findings*.
+
+---
+
+## Citation
+
+If you find this work useful, please cite:
+
+```bibtex
+@misc{dugubuyan2026agentnexus,
+  author       = {dugubuyan},
+  title        = {AgentNexus: A Service-Boundary-Aware Coordination Architecture
+                  for Heterogeneous LLM Code Agents},
+  year         = {2026},
+  publisher    = {Zenodo},
+  doi          = {10.5281/zenodo.19601563},
+  url          = {https://doi.org/10.5281/zenodo.19601563}
+}
+```

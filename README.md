@@ -5,6 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![Tests](https://img.shields.io/badge/tests-191%20passing-brightgreen.svg)](tests/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19601563.svg)](https://doi.org/10.5281/zenodo.19601563)
 
 > *"Service boundaries, not agent roles, are the appropriate primitive for coordinating LLM agents in real software development."*
 
