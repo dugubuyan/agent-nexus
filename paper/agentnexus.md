@@ -64,28 +64,18 @@ AgentNexus organizes the world around four abstractions:
 
 ```mermaid
 graph TB
-    subgraph PS["Project Space (jiuyan-main)"]
-        subgraph SP1["Sub-Project A (search-service)"]
-            D1[requirement v3]
-            D2[api v5]
-            D3[design v2]
-        end
-        subgraph SP2["Sub-Project B (search-admin-frontend)"]
-            D4[requirement v2]
-            D5[design v1]
-        end
-        subgraph SP3["Sub-Project C (ops-service)"]
-            D6[config/prod v4]
-        end
-        SUB1["Subscription: B → A/api"]
-        SUB2["Subscription: B → A/requirement"]
+    subgraph PS["Project Space"]
+        SP1["Sub-Project A\nsearch-service\napi v5, requirement v3"]
+        SP2["Sub-Project B\nsearch-frontend\nrequirement v2"]
+        SP3["Sub-Project C\nops-service\nconfig/prod v4"]
+        SUB1["Subscription: B watches A/api"]
+        SUB2["Subscription: B watches A/requirement"]
         NOTIF["Notification Queue"]
     end
 
-    SP1 -->|push_document| D1
-    SP1 -->|push_document| D2
-    D2 -->|triggers| NOTIF
+    SP1 -->|push_document| NOTIF
     SUB1 -->|matches| NOTIF
+    SUB2 -->|matches| NOTIF
     NOTIF -->|get_my_updates_with_context| SP2
 ```
 
@@ -160,7 +150,7 @@ The key architectural difference is that AgentNexus treats the *service* as the 
 
 AgentNexus is implemented in Python using:
 
-- **FastMCP** (mcp[cli] ≥1.0) for the MCP server layer
+- **FastMCP** (mcp[cli] >= 1.0) for the MCP server layer
 - **SQLAlchemy** + **SQLite** for document storage (with a migration path to PostgreSQL)
 - **Alembic** for schema migrations
 - **watchdog** for filesystem-based document ingestion
@@ -183,17 +173,17 @@ The frontend sub-project subscribes to the search-service's `api` and `requireme
 
 ```mermaid
 sequenceDiagram
-    participant BA as Backend Agent<br/>(search-service)
+    participant BA as Backend Agent
     participant AN as AgentNexus
-    participant FA as Frontend Agent<br/>(search-admin-frontend)
+    participant FA as Frontend Agent
 
-    BA->>AN: push_document(api, v2)<br/>"PUT /admin/docs/{id} added"
-    AN->>AN: compute diff(v1→v2)<br/>generate notification
+    BA->>AN: push_document(api, v2)
+    AN->>AN: compute diff, generate notification
     FA->>AN: get_my_updates_with_context()
-    AN-->>FA: {diff, latest_content, update_id}
-    Note over FA: diff shows new endpoint<br/>latest_content has full spec
-    FA->>FA: remove mock implementation<br/>integrate real endpoint
-    FA->>AN: push_document(requirement, v2)<br/>"remove 'not yet implemented'"
+    AN-->>FA: diff + latest_content + update_id
+    Note over FA: Apply targeted code changes
+    FA->>FA: remove mock, integrate real endpoint
+    FA->>AN: push_document(requirement, v2)
     FA->>AN: ack_update(update_id)
     AN->>AN: mark notification read
 ```
