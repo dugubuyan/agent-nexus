@@ -35,8 +35,14 @@ if TYPE_CHECKING:
 # database-level advisory locks.
 _push_lock = threading.Lock()
 
-VALID_DOC_TYPES = {"requirement", "design", "api", "config", "task"}
-VALID_CONFIG_STAGES = {"dev", "test", "prod"}
+VALID_DOC_TYPES = {
+    "requirement", "design", "api", "config", "task",
+    "schema", "runbook", "changelog", "test-plan",
+}
+
+# Variants that are open-ended (any string allowed) — validated loosely
+# Variants for config must be one of these
+VALID_CONFIG_VARIANTS = {"dev", "test", "prod"}
 
 
 def _sha256(content: str) -> str:
@@ -45,11 +51,14 @@ def _sha256(content: str) -> str:
 
 def _parse_doc_id(doc_id: str) -> tuple[str, str, Optional[str]]:
     """
-    Parse doc_id into (subproject_id, doc_type, config_stage).
+    Parse doc_id into (subproject_id, doc_type, doc_variant).
 
     Valid formats:
-      {subproject_id}/{doc_type}           -> config_stage = None
-      {subproject_id}/{doc_type}/{stage}   -> only for doc_type == "config"
+      {subproject_id}/{doc_type}              -> doc_variant = None
+      {subproject_id}/{doc_type}/{variant}    -> doc_variant = variant string
+
+    All doc_types support an optional variant. For 'config', variant is
+    required and must be one of VALID_CONFIG_VARIANTS.
 
     Raises DocExchangeError(INVALID_DOC_ID) on any format violation.
     """
@@ -57,28 +66,28 @@ def _parse_doc_id(doc_id: str) -> tuple[str, str, Optional[str]]:
         raise DocExchangeError(
             error_code="INVALID_DOC_ID",
             message="doc_id must not be empty.",
-            details={"format": "{subproject_id}/{doc_type}[/{stage}]"},
+            details={"format": "{subproject_id}/{doc_type}[/{variant}]"},
         )
 
     parts = doc_id.split("/")
 
     if len(parts) == 2:
         subproject_id, doc_type = parts
-        config_stage = None
+        doc_variant = None
     elif len(parts) == 3:
-        subproject_id, doc_type, config_stage = parts
+        subproject_id, doc_type, doc_variant = parts
     else:
         raise DocExchangeError(
             error_code="INVALID_DOC_ID",
-            message=f"doc_id '{doc_id}' has invalid format. Expected {{subproject_id}}/{{doc_type}}[/{{stage}}].",
-            details={"format": "{subproject_id}/{doc_type}[/{stage}]"},
+            message=f"doc_id '{doc_id}' has invalid format. Expected {{subproject_id}}/{{doc_type}}[/{{variant}}].",
+            details={"format": "{subproject_id}/{doc_type}[/{variant}]"},
         )
 
     if not subproject_id:
         raise DocExchangeError(
             error_code="INVALID_DOC_ID",
             message="subproject_id part of doc_id must not be empty.",
-            details={"format": "{subproject_id}/{doc_type}[/{stage}]"},
+            details={"format": "{subproject_id}/{doc_type}[/{variant}]"},
         )
 
     if doc_type not in VALID_DOC_TYPES:
@@ -88,28 +97,36 @@ def _parse_doc_id(doc_id: str) -> tuple[str, str, Optional[str]]:
             details={"valid_doc_types": sorted(VALID_DOC_TYPES)},
         )
 
-    if len(parts) == 3:
-        # 3-part format is only allowed for config type
-        if doc_type != "config":
+    # config requires a variant
+    if doc_type == "config":
+        if not doc_variant:
             raise DocExchangeError(
                 error_code="INVALID_DOC_ID",
-                message=f"3-part doc_id is only valid for doc_type 'config', got '{doc_type}'.",
-                details={"format": "{subproject_id}/{doc_type}[/{stage}]"},
+                message=f"doc_type 'config' requires a variant. Must be one of: {sorted(VALID_CONFIG_VARIANTS)}.",
+                details={"valid_variants": sorted(VALID_CONFIG_VARIANTS)},
             )
-        if config_stage not in VALID_CONFIG_STAGES:
+        if doc_variant not in VALID_CONFIG_VARIANTS:
             raise DocExchangeError(
                 error_code="INVALID_DOC_ID",
-                message=f"config stage '{config_stage}' in doc_id is not valid. Must be one of: {sorted(VALID_CONFIG_STAGES)}.",
-                details={"valid_stages": sorted(VALID_CONFIG_STAGES)},
+                message=f"config variant '{doc_variant}' is not valid. Must be one of: {sorted(VALID_CONFIG_VARIANTS)}.",
+                details={"valid_variants": sorted(VALID_CONFIG_VARIANTS)},
             )
 
-    return subproject_id, doc_type, config_stage
+    # variant must not be empty string if provided
+    if doc_variant is not None and not doc_variant.strip():
+        raise DocExchangeError(
+            error_code="INVALID_DOC_ID",
+            message="doc_variant must not be empty if provided.",
+            details={"format": "{subproject_id}/{doc_type}[/{variant}]"},
+        )
+
+    return subproject_id, doc_type, doc_variant
 
 
-def _doc_filename(doc_type: str, config_stage: Optional[str]) -> str:
+def _doc_filename(doc_type: str, doc_variant: Optional[str]) -> str:
     """Return the filename for a document (without directory)."""
-    if doc_type == "config" and config_stage:
-        return f"config_{config_stage}.md"
+    if doc_variant:
+        return f"{doc_type}_{doc_variant}.md"
     return f"{doc_type}.md"
 
 
@@ -144,34 +161,17 @@ class DocumentService:
         Writes DB records and filesystem file atomically.
         """
         # 1. Validate doc_id format
-        subproject_id, doc_type, config_stage = _parse_doc_id(req.doc_id)
-
-        # 2. Validate config stage from metadata (only needed when stage not in doc_id)
-        if doc_type == "config":
-            if config_stage is None:
-                # Stage not in doc_id — must come from metadata
-                stage_from_meta = req.metadata.get("stage") if req.metadata else None
-                if not stage_from_meta or stage_from_meta not in VALID_CONFIG_STAGES:
-                    raise DocExchangeError(
-                        error_code="INVALID_STAGE",
-                        message=(
-                            f"config type requires metadata.stage in {sorted(VALID_CONFIG_STAGES)}. "
-                            f"Got: {stage_from_meta!r}."
-                        ),
-                        details={"valid_stages": sorted(VALID_CONFIG_STAGES)},
-                    )
-                config_stage = stage_from_meta
-                req = req.model_copy(update={"doc_id": f"{subproject_id}/config/{config_stage}"})
+        subproject_id, doc_type, doc_variant = _parse_doc_id(req.doc_id)
 
         with _push_lock:
-            return self._push_locked(req, subproject_id, doc_type, config_stage)
+            return self._push_locked(req, subproject_id, doc_type, doc_variant)
 
     def _push_locked(
         self,
         req: PushRequest,
         subproject_id: str,
         doc_type: str,
-        config_stage: Optional[str],
+        doc_variant: Optional[str],
     ) -> PushResult:
         """Execute the push under the module-level lock to prevent data races."""
         # 3. Compute content hash
@@ -211,7 +211,7 @@ class DocumentService:
                 project_space_id=req.project_space_id,
                 subproject_id=subproject_id,
                 doc_type=doc_type,
-                config_stage=config_stage,
+                doc_variant=doc_variant,
                 latest_version=0,
                 created_at=now,
             )
@@ -221,7 +221,7 @@ class DocumentService:
         new_version_num = document.latest_version + 1
 
         # 7. Write file to filesystem (before DB commit, so we can roll back on DB failure)
-        file_path = self._get_file_path(req.project_space_id, subproject_id, doc_type, config_stage)
+        file_path = self._get_file_path(req.project_space_id, subproject_id, doc_type, doc_variant)
         old_content: Optional[str] = None
         file_existed = os.path.exists(file_path)
 
@@ -678,7 +678,7 @@ class DocumentService:
         project_space_id: str,
         subproject_id: str,
         doc_type: str,
-        config_stage: Optional[str],
+        doc_variant: Optional[str],
     ) -> str:
-        filename = _doc_filename(doc_type, config_stage)
+        filename = _doc_filename(doc_type, doc_variant)
         return os.path.join(self._docs_root, project_space_id, subproject_id, filename)

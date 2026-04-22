@@ -6,7 +6,7 @@ This project is integrated with AgentNexus, a service-boundary-aware coordinatio
 
 - `project_name`: `{YOUR_PROJECT_NAME}`
 - `project_space_id`: `{YOUR_SPACE_ID}`
-- MCP endpoint: `http://localhost:10086/mcp`
+- MCP endpoint: `{YOUR_MCP_ENDPOINT}`
 
 ## Workflow
 
@@ -17,7 +17,7 @@ This project is integrated with AgentNexus, a service-boundary-aware coordinatio
 
 Each update item contains:
 - `update_id` — use with `ack_update` when done
-- `doc_type` — type of document that changed (requirement / design / api / config / task)
+- `doc_type` — type of document that changed (requirement / design / api / config / schema / runbook / changelog / test-plan / task)
 - `new_version` — the new version number
 - `diff` — unified diff showing what changed (`+` added, `-` removed)
 - `latest_content` — full current document content
@@ -30,7 +30,13 @@ Each update item contains:
 
 Resolve your `project_id` first (via `get_project_id_by_name`), then call `push_document` to publish your latest documents to AgentNexus so dependent services are notified.
 
-`doc_id` format: `{project_id}/{doc_type}`, e.g.:
+`doc_id` format: `{project_id}/{doc_type}` or `{project_id}/{doc_type}/{variant}`, e.g.:
 - `{project_id}/requirement`
 - `{project_id}/api`
 - `{project_id}/design`
+- `{project_id}/config/dev`   ← config requires a variant: dev / test / prod
+- `{project_id}/config/prod`
+- `{project_id}/changelog/notes`
+- `{project_id}/changelog/breaking`
+
+See `AGENT_GUIDE.md` for the full list of supported doc_types and variants.

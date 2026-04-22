@@ -51,8 +51,8 @@ pytestdebug.log
 # Alembic runtime
 # Keep alembic/ directory but ignore generated __pycache__
 
-# Docs runtime (generated document files with real data)
-docs/
+# Workspace: external project documents and repos (runtime data, not platform code)
+workspace/
 
 # Environment variables
 .env

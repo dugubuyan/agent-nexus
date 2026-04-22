@@ -53,7 +53,7 @@ def _add_document_with_published_version(
         project_space_id=space_id,
         subproject_id=subproject_id,
         doc_type=doc_type,
-        config_stage=None,
+        doc_variant=None,
         latest_version=1,
         created_at=now,
     )
@@ -97,7 +97,7 @@ def _add_document_draft_only(
         project_space_id=space_id,
         subproject_id=subproject_id,
         doc_type=doc_type,
-        config_stage=None,
+        doc_variant=None,
         latest_version=1,
         created_at=now,
     )

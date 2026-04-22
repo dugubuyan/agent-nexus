@@ -98,7 +98,7 @@ def test_create_document_and_version(db_session: Session, default_space: Project
         project_space_id=default_space.id,
         subproject_id=sub_id,
         doc_type="requirement",
-        config_stage=None,
+        doc_variant=None,
         latest_version=1,
         created_at=datetime.now(timezone.utc),
     )

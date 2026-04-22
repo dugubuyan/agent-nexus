@@ -114,35 +114,35 @@ def test_push_single_part_returns_invalid_doc_id(db_session, default_space, tmp_
     assert exc_info.value.error_code == "INVALID_DOC_ID"
 
 
-def test_push_non_config_with_stage_returns_invalid_doc_id(db_session, default_space, tmp_docs_root):
+def test_push_non_config_with_variant_succeeds(db_session, default_space, tmp_docs_root):
+    """New design: any doc_type can have a variant."""
     svc = _make_service(db_session, tmp_docs_root)
-    with pytest.raises(DocExchangeError) as exc_info:
-        _push(svc, "sub1/requirement/dev", "content", project_space_id=default_space.id)
-    assert exc_info.value.error_code == "INVALID_DOC_ID"
+    result = _push(svc, "sub1/requirement/v2", "content", project_space_id=default_space.id)
+    assert result.version == 1
 
 
 # ---------------------------------------------------------------------------
-# push() — config stage validation
+# push() — config variant validation
 # ---------------------------------------------------------------------------
 
 
-def test_push_config_without_stage_metadata_returns_invalid_stage(db_session, default_space, tmp_docs_root):
+def test_push_config_without_variant_returns_invalid_doc_id(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
     with pytest.raises(DocExchangeError) as exc_info:
         _push(svc, "sub1/config", "content", project_space_id=default_space.id, metadata={})
-    assert exc_info.value.error_code == "INVALID_STAGE"
+    assert exc_info.value.error_code == "INVALID_DOC_ID"
 
 
-def test_push_config_with_invalid_stage_returns_invalid_stage(db_session, default_space, tmp_docs_root):
+def test_push_config_with_invalid_variant_returns_invalid_doc_id(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
     with pytest.raises(DocExchangeError) as exc_info:
-        _push(svc, "sub1/config", "content", project_space_id=default_space.id, metadata={"stage": "staging"})
-    assert exc_info.value.error_code == "INVALID_STAGE"
+        _push(svc, "sub1/config/staging", "content", project_space_id=default_space.id)
+    assert exc_info.value.error_code == "INVALID_DOC_ID"
 
 
-def test_push_config_with_valid_stage_succeeds(db_session, default_space, tmp_docs_root):
+def test_push_config_with_valid_variant_in_doc_id_succeeds(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    result = _push(svc, "sub1/config", "# Config", project_space_id=default_space.id, metadata={"stage": "dev"})
+    result = _push(svc, "sub1/config/dev", "# Config", project_space_id=default_space.id)
     assert result.version == 1
 
 

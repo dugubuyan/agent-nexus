@@ -18,7 +18,7 @@ from sqlalchemy.orm import sessionmaker
 from doc_exchange.mcp.dependencies import ServiceContainer
 from doc_exchange.mcp.tools import ToolHandler
 from doc_exchange.models import Base, ProjectSpace
-from doc_exchange.services.document_service import VALID_CONFIG_STAGES
+from doc_exchange.services.document_service import VALID_CONFIG_VARIANTS
 from doc_exchange.services.project_service import ProjectService
 
 
@@ -83,7 +83,7 @@ def _run(coro):
 # Three distinct non-empty content strings for dev/test/prod
 three_distinct_contents = st.lists(
     st.text(
-        alphabet=st.characters(blacklist_characters="\r"),
+        alphabet=st.characters(blacklist_characters="\r", blacklist_categories=("Cs",)),
         min_size=1,
         max_size=200,
     ),
@@ -166,11 +166,11 @@ def test_prop_get_config_stage_isolation(contents):
 @settings(max_examples=100)
 @given(
     content=st.text(
-        alphabet=st.characters(blacklist_characters="\r"),
+        alphabet=st.characters(blacklist_characters="\r", blacklist_categories=("Cs",)),
         min_size=1,
         max_size=200,
     ),
-    queried_stage=st.sampled_from(sorted(VALID_CONFIG_STAGES)),
+    queried_stage=st.sampled_from(sorted(VALID_CONFIG_VARIANTS)),
 )
 def test_prop_get_config_missing_stage_returns_doc_not_found(content, queried_stage):
     """
@@ -180,7 +180,7 @@ def test_prop_get_config_missing_stage_returns_doc_not_found(content, queried_st
     **Validates: Requirements 6.2**
     """
     # Push only to one stage, query a different stage
-    other_stages = sorted(VALID_CONFIG_STAGES - {queried_stage})
+    other_stages = sorted(VALID_CONFIG_VARIANTS - {queried_stage})
     push_stage = other_stages[0]  # push to a different stage
 
     engine = _make_engine()

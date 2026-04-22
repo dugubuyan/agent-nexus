@@ -49,7 +49,7 @@ def upgrade() -> None:
         sa.Column("project_space_id", sa.String(), nullable=False),
         sa.Column("subproject_id", sa.String(), nullable=False),
         sa.Column("doc_type", sa.String(), nullable=False),
-        sa.Column("config_stage", sa.String(), nullable=True),
+        sa.Column("doc_variant", sa.String(), nullable=True),
         sa.Column("latest_version", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(["project_space_id"], ["project_spaces.id"]),

@@ -61,8 +61,8 @@ class Document(Base):
         String, ForeignKey("project_spaces.id"), nullable=False
     )
     subproject_id: Mapped[str] = mapped_column(String, nullable=False)
-    doc_type: Mapped[str] = mapped_column(String, nullable=False)  # requirement | design | api | config | task
-    config_stage: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # only for config type: dev | test | prod
+    doc_type: Mapped[str] = mapped_column(String, nullable=False)  # e.g. requirement | design | api | config | changelog | runbook | schema | test-plan
+    doc_variant: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # e.g. config→dev/test/prod, api→rest/graphql, changelog→notes/breaking
     latest_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 

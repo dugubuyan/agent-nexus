@@ -18,7 +18,7 @@ from sqlalchemy.orm import sessionmaker
 
 from doc_exchange.models import Base, ProjectSpace
 from doc_exchange.services.audit_log_service import AuditLogService
-from doc_exchange.services.document_service import DocumentService, VALID_DOC_TYPES, VALID_CONFIG_STAGES
+from doc_exchange.services.document_service import DocumentService, VALID_DOC_TYPES, VALID_CONFIG_VARIANTS
 from doc_exchange.services.errors import DocExchangeError
 from doc_exchange.services.schemas import PushRequest
 
@@ -85,19 +85,19 @@ valid_subproject_id = st.text(
 # Valid doc types (excluding config to keep things simple for non-config tests)
 non_config_doc_types = st.sampled_from(sorted(VALID_DOC_TYPES - {"config"}))
 
-# Valid config stages
-valid_config_stage = st.sampled_from(sorted(VALID_CONFIG_STAGES))
+# Valid config variants
+valid_config_stage = st.sampled_from(sorted(VALID_CONFIG_VARIANTS))
 
-# Non-empty content strings (exclude bare \r to avoid platform text-mode normalization issues)
+# Non-empty content strings (exclude bare \r and surrogate characters)
 non_empty_content = st.text(
-    alphabet=st.characters(blacklist_characters="\r"),
+    alphabet=st.characters(blacklist_characters="\r", blacklist_categories=("Cs",)),
     min_size=1,
     max_size=500,
 )
 
 # Distinct content pairs (for version increment tests)
 distinct_content_pair = st.lists(
-    st.text(alphabet=st.characters(blacklist_characters="\r"), min_size=1, max_size=200),
+    st.text(alphabet=st.characters(blacklist_characters="\r", blacklist_categories=("Cs",)), min_size=1, max_size=200),
     min_size=2,
     max_size=10,
     unique=True,
@@ -131,9 +131,9 @@ invalid_doc_id = st.one_of(
     st.builds(lambda t: f"/{t}", non_config_doc_types),
 )
 
-# Invalid config stages (not in {dev, test, prod})
+# Invalid config variants (not in {dev, test, prod})
 invalid_config_stage = st.text(min_size=1, max_size=20).filter(
-    lambda s: s not in VALID_CONFIG_STAGES and s.strip() != ""
+    lambda s: s not in VALID_CONFIG_VARIANTS and s.strip() != ""
 )
 
 
@@ -356,7 +356,7 @@ def test_prop_invalid_doc_id_rejected(doc_id):
 )
 def test_prop_config_missing_or_invalid_stage_rejected(subproject_id, content, bad_stage):
     """
-    Property 8 (invalid stage): config type push without valid stage must be rejected.
+    Property 8 (invalid variant): config type push without valid variant must be rejected.
 
     **Validates: Requirements 2.6, 6.3**
     """
@@ -365,16 +365,19 @@ def test_prop_config_missing_or_invalid_stage_rejected(subproject_id, content, b
         try:
             session, space_id = _make_session_and_space(engine)
             svc = _make_service(session, docs_root)
-            doc_id = f"{subproject_id}/config"
 
-            metadata = {} if bad_stage is None else {"stage": bad_stage}
+            # config without variant in doc_id → always INVALID_DOC_ID
+            doc_id = f"{subproject_id}/config"
+            if bad_stage is not None and bad_stage != "":
+                # invalid variant in doc_id
+                doc_id = f"{subproject_id}/config/{bad_stage}"
 
             with pytest.raises(DocExchangeError) as exc_info:
-                _push(svc, doc_id, content, project_space_id=space_id, metadata=metadata)
+                _push(svc, doc_id, content, project_space_id=space_id)
 
             err = exc_info.value
-            assert err.error_code in ("INVALID_STAGE", "INVALID_DOC_ID"), (
-                f"Expected INVALID_STAGE or INVALID_DOC_ID, got {err.error_code!r}"
+            assert err.error_code == "INVALID_DOC_ID", (
+                f"Expected INVALID_DOC_ID, got {err.error_code!r}"
             )
         finally:
             session.close()
@@ -403,12 +406,6 @@ def test_prop_config_valid_stage_succeeds(subproject_id, content, stage):
             doc_id_with_stage = f"{subproject_id}/config/{stage}"
             result = _push(svc, doc_id_with_stage, content, project_space_id=space_id)
             assert result.version >= 1
-
-            # Stage in metadata (different subproject to avoid collision)
-            sub2 = subproject_id + "2"
-            doc_id_meta = f"{sub2}/config"
-            result2 = _push(svc, doc_id_meta, content, project_space_id=space_id, metadata={"stage": stage})
-            assert result2.version >= 1
         finally:
             session.close()
             engine.dispose()
@@ -588,7 +585,7 @@ def test_prop_version_retention_invariants(
                 project_space_id=space_id,
                 subproject_id=subproject_id,
                 doc_type=doc_type,
-                config_stage=None,
+                doc_variant=None,
                 latest_version=total_versions,
                 created_at=old_cutoff,
             )

@@ -13,7 +13,7 @@ from doc_exchange.services.schemas import PushRequest
 
 from .dependencies import ServiceContainer
 
-VALID_CONFIG_STAGES = {"dev", "test", "prod"}
+VALID_CONFIG_VARIANTS = {"dev", "test", "prod"}
 
 
 class ToolHandler:
@@ -463,7 +463,7 @@ doc_id 格式：`{{project_id}}/{{doc_type}}`，例如：
                     "doc_id": d.id,
                     "doc_type": d.doc_type,
                     "latest_version": d.latest_version,
-                    "config_stage": d.config_stage,
+                    "doc_variant": d.doc_variant,
                     "created_at": d.created_at.isoformat(),
                 }
                 for d in docs
@@ -587,11 +587,11 @@ doc_id 格式：`{{project_id}}/{{doc_type}}`，例如：
         try:
             subproject = self._validate_project(project_id)
 
-            if stage not in VALID_CONFIG_STAGES:
+            if stage not in VALID_CONFIG_VARIANTS:
                 raise DocExchangeError(
                     error_code="INVALID_STAGE",
-                    message=f"stage '{stage}' is not valid. Must be one of: {sorted(VALID_CONFIG_STAGES)}.",
-                    details={"valid_stages": sorted(VALID_CONFIG_STAGES)},
+                    message=f"stage '{stage}' is not valid. Must be one of: {sorted(VALID_CONFIG_VARIANTS)}.",
+                    details={"valid_variants": sorted(VALID_CONFIG_VARIANTS)},
                 )
 
             doc_id = f"{project_id}/config/{stage}"

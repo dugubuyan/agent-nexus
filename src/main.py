@@ -8,7 +8,7 @@ agents can connect simultaneously.
 Default: http://0.0.0.0:10000/mcp
 Configure via env vars:
   DOC_EXCHANGE_DB_URL           (default: sqlite:///doc_exchange.db)
-  DOC_EXCHANGE_DOCS_ROOT        (default: ./docs)
+  DOC_EXCHANGE_DOCS_ROOT        (default: ./workspace/docs)
   DOC_EXCHANGE_DEFAULT_SPACE_ID (default: default)
   DOC_EXCHANGE_HOST             (default: 0.0.0.0)
   DOC_EXCHANGE_PORT             (default: 10000)
@@ -32,7 +32,7 @@ from doc_exchange.mcp.server import mcp
 from doc_exchange.services.file_watcher_service import FileWatcherService
 
 DB_URL = os.environ.get("DOC_EXCHANGE_DB_URL", "sqlite:///doc_exchange.db")
-DOCS_ROOT = os.environ.get("DOC_EXCHANGE_DOCS_ROOT", "./docs")
+DOCS_ROOT = os.environ.get("DOC_EXCHANGE_DOCS_ROOT", "./workspace/docs")
 DEFAULT_SPACE_ID = os.environ.get("DOC_EXCHANGE_DEFAULT_SPACE_ID", "default")
 
 

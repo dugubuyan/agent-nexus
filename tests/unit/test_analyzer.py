@@ -35,7 +35,7 @@ def _make_doc(doc_type: str, space_id: str = "space-1"):
         project_space_id=space_id,
         subproject_id="subproj-1",
         doc_type=doc_type,
-        config_stage=None,
+        doc_variant=None,
         latest_version=1,
         created_at=datetime.now(timezone.utc),
     )

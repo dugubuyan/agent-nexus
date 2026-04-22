@@ -25,7 +25,7 @@ def _make_document(db: Session, space_id: str, latest_version: int = 0) -> Docum
         project_space_id=space_id,
         subproject_id=str(uuid.uuid4()),
         doc_type="requirement",
-        config_stage=None,
+        doc_variant=None,
         latest_version=latest_version,
         created_at=datetime.now(timezone.utc),
     )
