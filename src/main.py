@@ -23,11 +23,8 @@ import sys
 HOST = os.environ.get("DOC_EXCHANGE_HOST", "0.0.0.0")
 PORT = int(os.environ.get("DOC_EXCHANGE_PORT", "10086"))
 
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
-
 from doc_exchange.models import Base
-from doc_exchange.mcp.dependencies import ServiceContainer
+from doc_exchange.mcp.dependencies import make_engine, make_session_factory, ServiceContainer
 from doc_exchange.mcp.server import mcp
 from doc_exchange.services.file_watcher_service import FileWatcherService
 
@@ -38,17 +35,9 @@ DEFAULT_SPACE_ID = os.environ.get("DOC_EXCHANGE_DEFAULT_SPACE_ID", "default")
 
 def main() -> None:
     # 1. Set up database
-    engine = create_engine(DB_URL, connect_args={"check_same_thread": False})
-
-    @event.listens_for(engine, "connect")
-    def set_pragma(dbapi_conn, _):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.close()
-
+    engine = make_engine(DB_URL)
     Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(bind=engine)
+    SessionLocal = make_session_factory(DB_URL)
 
     # 2. Ensure docs root exists
     os.makedirs(DOCS_ROOT, exist_ok=True)

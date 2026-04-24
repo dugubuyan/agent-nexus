@@ -11,10 +11,8 @@ Default endpoint: http://0.0.0.0:10000/mcp
 import os
 
 from mcp.server.fastmcp import FastMCP
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
 
-from doc_exchange.mcp.dependencies import ServiceContainer
+from doc_exchange.mcp.dependencies import ServiceContainer, make_session_factory
 from doc_exchange.mcp.tools import ToolHandler
 
 mcp = FastMCP(
@@ -24,22 +22,11 @@ mcp = FastMCP(
 )
 
 # ---------------------------------------------------------------------------
-# Default service container (SQLite, configurable via env vars)
+# Session factory (engine config lives in dependencies.make_engine)
 # ---------------------------------------------------------------------------
 
-_DB_URL = os.environ.get("DOC_EXCHANGE_DB_URL", "sqlite:///doc_exchange.db")
-_DOCS_ROOT = os.environ.get("DOC_EXCHANGE_DOCS_ROOT", "./docs")
-
-_engine = create_engine(_DB_URL, connect_args={"check_same_thread": False})
-
-@event.listens_for(_engine, "connect")
-def _set_sqlite_pragma(dbapi_conn, _):
-    cursor = dbapi_conn.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.close()
-
-_SessionLocal = sessionmaker(bind=_engine)
+_DOCS_ROOT = os.environ.get("DOC_EXCHANGE_DOCS_ROOT", "./workspace/docs")
+_SessionLocal = make_session_factory()
 
 
 def _get_handler() -> tuple[ToolHandler, any]:

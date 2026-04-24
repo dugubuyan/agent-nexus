@@ -42,6 +42,8 @@ ChatDev [Qian et al., 2024] organizes agents as CEO, CTO, programmer, and tester
 
 These frameworks share a common assumption: all agents operate within a single simulated organization on a single codebase. Coordination is achieved through shared context and role-based task delegation.
 
+A concurrent work also named AgentNexus [concurrent work] focuses on accelerating AI agent development and enhancing interoperability through MCP as a protocol layer. In contrast, our work addresses a complementary problem: how to coordinate heterogeneous LLM code agents across *service boundaries* in multi-service software systems, treating the service—not the agent role—as the fundamental unit of coordination.
+
 ### 2.2 Limitations of the Role-Centric Model
 
 He et al. [2024] identify several open challenges in LLM-based multi-agent software engineering, including context window limitations, agent misalignment, and the difficulty of managing long-horizon tasks. E2EDev [2025] benchmarks show that multi-agent frameworks do not consistently outperform single-agent approaches, partly due to coordination overhead.
@@ -51,6 +53,8 @@ A deeper limitation, less discussed in the literature, is *organizational bounda
 ### 2.3 Publish-Subscribe for Agent Coordination
 
 The publish-subscribe pattern [Eugster et al., 2003] is well-established in distributed systems for decoupling producers from consumers. Recent work on agent interoperability protocols, including MCP [Anthropic, 2024] and A2A [Google, 2025], has begun to apply similar ideas to agent communication. AgentNexus extends this pattern specifically to *document-level* coordination in software development, where the "messages" are versioned Markdown documents representing service contracts.
+
+A recent work sharing the same name, AgentNexus [Jung & Hamilton, 2026], presents a centralized platform for accelerating AI agent development with pre-built toolkits and MCP integration, targeting rapid deployment of multi-agent workflows. Our work addresses a complementary problem: coordinating heterogeneous LLM code agents across service boundaries in multi-service software systems, using versioned document exchange rather than a centralized agent runtime.
 
 ---
 
@@ -115,11 +119,11 @@ AgentNexus exposes its functionality as a Model Context Protocol server running 
 
 **Agent tools**: `push_document`, `get_document`, `get_my_updates_with_context`, `ack_update`, `get_my_tasks`, `get_config`
 
-**Admin tools**: `create_space`, `register_project`, `list_projects`, `add_subscription`, `publish_draft`, `generate_steering_file`, `get_project_id_by_name`
+**Admin tools**: `create_space`, `register_project`, `list_projects`, `add_subscription`, `publish_draft`, `generate_instruction_file`, `get_project_id_by_name`
 
-### 3.5 Steering File Integration
+### 3.5 Agent Instruction File Integration
 
-Each sub-project's IDE agent is configured with a *steering file*—a Markdown document loaded into the agent's context at startup. The steering file instructs the agent to:
+Each sub-project's IDE agent is configured with an *agent instruction file*—a Markdown document loaded into the agent's context at startup.[^1] The instruction file directs the agent to:
 
 1. Resolve its `project_id` by name at startup via `get_project_id_by_name`.
 2. Call `get_my_updates_with_context` to check for pending document changes.
@@ -127,6 +131,8 @@ Each sub-project's IDE agent is configured with a *steering file*—a Markdown d
 4. Push updated documents after significant code changes via `push_document`.
 
 This creates a self-contained coordination loop that requires no human intervention once configured.
+
+[^1]: Various IDE agents use different names for this concept: *steering file* in Kiro, *rules* in Cursor, `CLAUDE.md` in Claude Code, `AGENTS.md` in Qoder. We use the tool-neutral term *agent instruction file* throughout this paper.
 
 ---
 
@@ -240,7 +246,9 @@ We have presented AgentNexus, a document exchange architecture that coordinates 
 - E2EDev (2025). Benchmarking Large Language Models in End-to-End Software Development Task. *arXiv:2510.14509*.
 - Anthropic (2024). Model Context Protocol. *anthropic.com/news/model-context-protocol*.
 - Eugster, P. et al. (2003). The Many Faces of Publish/Subscribe. *ACM Computing Surveys*.
+- Jung, Y., Hamilton, L. (2026). AgentNexus: Accelerating AI Agent Development and Enhancing Interoperability with MCP. *MIT Lincoln Laboratory*.
 - RTADev (2025). Intention Aligned Multi-Agent Framework for Software Development. *ACL 2025 Findings*.
+- Concurrent work. AgentNexus: Accelerating AI Agent Development and Enhancing Interoperability with MCP. *Semantic Scholar*.
 
 ---
 
