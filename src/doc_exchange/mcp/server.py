@@ -25,7 +25,7 @@ mcp = FastMCP(
 # Session factory (engine config lives in dependencies.make_engine)
 # ---------------------------------------------------------------------------
 
-_DOCS_ROOT = os.environ.get("DOC_EXCHANGE_DOCS_ROOT", "./workspace/docs")
+_DOCS_ROOT = os.environ.get("DOC_EXCHANGE_DOCS_ROOT", "./workspace")
 _SessionLocal = make_session_factory()
 
 

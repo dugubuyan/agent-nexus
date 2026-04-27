@@ -110,7 +110,7 @@ get_my_updates_with_context(project_id="<frontend_id>")
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
 | `DOC_EXCHANGE_DB_URL` | `sqlite:///doc_exchange.db` | Database URL |
-| `DOC_EXCHANGE_DOCS_ROOT` | `./docs` | Document filesystem root |
+| `DOC_EXCHANGE_DOCS_ROOT` | `./workspace` | Workspace root (docs live under `{root}/{space_id}/docs/`) |
 | `DOC_EXCHANGE_HOST` | `0.0.0.0` | Server bind host |
 | `DOC_EXCHANGE_PORT` | `10086` | Server port |
 | `DOC_EXCHANGE_DEFAULT_SPACE_ID` | `default` | Default space for FileWatcher |

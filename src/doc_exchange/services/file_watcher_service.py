@@ -36,7 +36,7 @@ class FileWatcherService:
 
     - Debounce: 500ms timer reset on repeated events for the same file
     - Hash dedup: skips push if content hash matches latest version
-    - Path parsing: {docs_root}/{space_id}/{subproject_id}/{filename}.md
+    - Path parsing: {workspace_root}/{space_id}/docs/{subproject_id}/{filename}.md
     """
 
     def __init__(
@@ -104,7 +104,7 @@ class FileWatcherService:
         """
         Parse file path to (doc_id, space_id).
 
-        Expected format: {docs_root}/{space_id}/{subproject_id}/{filename}.md
+        Expected format: {workspace_root}/{space_id}/docs/{subproject_id}/{filename}.md
 
         Supported filenames:
           requirement.md  → doc_id = {subproject_id}/requirement
@@ -124,14 +124,14 @@ class FileWatcherService:
         if not abs_path.startswith(docs_root + os.sep):
             return None, None
 
-        rel = abs_path[len(docs_root) + 1:]  # strip docs_root/
+        rel = abs_path[len(docs_root) + 1:]  # strip workspace_root/
         parts = rel.split(os.sep)
 
-        # Expect exactly: space_id / subproject_id / filename.md
-        if len(parts) != 3:
+        # Expect exactly: space_id / "docs" / subproject_id / filename.md
+        if len(parts) != 4 or parts[1] != "docs":
             return None, None
 
-        space_id, subproject_id, filename = parts
+        space_id, _, subproject_id, filename = parts
 
         if not filename.endswith(".md"):
             return None, None

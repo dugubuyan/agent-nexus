@@ -82,8 +82,8 @@ def _make_watcher(docs_root, doc_service, space_id="default"):
 
 
 def _write_file(docs_root, space_id, subproject_id, filename, content):
-    """Write a .md file under docs_root/{space_id}/{subproject_id}/{filename}."""
-    dir_path = os.path.join(docs_root, space_id, subproject_id)
+    """Write a .md file under docs_root/{space_id}/docs/{subproject_id}/{filename}."""
+    dir_path = os.path.join(docs_root, space_id, "docs", subproject_id)
     os.makedirs(dir_path, exist_ok=True)
     file_path = os.path.join(dir_path, filename)
     with open(file_path, "w", encoding="utf-8") as f:

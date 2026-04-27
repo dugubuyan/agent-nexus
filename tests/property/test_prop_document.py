@@ -177,7 +177,7 @@ def test_prop_push_content_round_trip(subproject_id, doc_type, content):
             )
 
             # Filesystem round-trip: file must contain exactly the pushed content
-            file_path = os.path.join(docs_root, space_id, subproject_id, f"{doc_type}.md")
+            file_path = os.path.join(docs_root, space_id, "docs", subproject_id, f"{doc_type}.md")
             assert os.path.exists(file_path), f"Expected file at {file_path}"
             with open(file_path, "r", encoding="utf-8") as f:
                 file_content = f.read()

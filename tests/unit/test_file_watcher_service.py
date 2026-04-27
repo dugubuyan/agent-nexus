@@ -47,49 +47,49 @@ def _sha256(content: str) -> str:
 class TestParsePath:
     def test_requirement_md(self, tmp_docs_root):
         watcher = _make_watcher(tmp_docs_root)
-        path = os.path.join(tmp_docs_root, "space1", "proj-a", "requirement.md")
+        path = os.path.join(tmp_docs_root, "space1", "docs", "proj-a", "requirement.md")
         doc_id, space_id = watcher._parse_path(path)
         assert doc_id == "proj-a/requirement"
         assert space_id == "space1"
 
     def test_design_md(self, tmp_docs_root):
         watcher = _make_watcher(tmp_docs_root)
-        path = os.path.join(tmp_docs_root, "space1", "proj-a", "design.md")
+        path = os.path.join(tmp_docs_root, "space1", "docs", "proj-a", "design.md")
         doc_id, space_id = watcher._parse_path(path)
         assert doc_id == "proj-a/design"
         assert space_id == "space1"
 
     def test_api_md(self, tmp_docs_root):
         watcher = _make_watcher(tmp_docs_root)
-        path = os.path.join(tmp_docs_root, "space1", "proj-a", "api.md")
+        path = os.path.join(tmp_docs_root, "space1", "docs", "proj-a", "api.md")
         doc_id, space_id = watcher._parse_path(path)
         assert doc_id == "proj-a/api"
         assert space_id == "space1"
 
     def test_task_md(self, tmp_docs_root):
         watcher = _make_watcher(tmp_docs_root)
-        path = os.path.join(tmp_docs_root, "space1", "proj-a", "task.md")
+        path = os.path.join(tmp_docs_root, "space1", "docs", "proj-a", "task.md")
         doc_id, space_id = watcher._parse_path(path)
         assert doc_id == "proj-a/task"
         assert space_id == "space1"
 
     def test_config_dev_md(self, tmp_docs_root):
         watcher = _make_watcher(tmp_docs_root)
-        path = os.path.join(tmp_docs_root, "space1", "proj-a", "config_dev.md")
+        path = os.path.join(tmp_docs_root, "space1", "docs", "proj-a", "config_dev.md")
         doc_id, space_id = watcher._parse_path(path)
         assert doc_id == "proj-a/config/dev"
         assert space_id == "space1"
 
     def test_config_test_md(self, tmp_docs_root):
         watcher = _make_watcher(tmp_docs_root)
-        path = os.path.join(tmp_docs_root, "space1", "proj-a", "config_test.md")
+        path = os.path.join(tmp_docs_root, "space1", "docs", "proj-a", "config_test.md")
         doc_id, space_id = watcher._parse_path(path)
         assert doc_id == "proj-a/config/test"
         assert space_id == "space1"
 
     def test_config_prod_md(self, tmp_docs_root):
         watcher = _make_watcher(tmp_docs_root)
-        path = os.path.join(tmp_docs_root, "space1", "proj-a", "config_prod.md")
+        path = os.path.join(tmp_docs_root, "space1", "docs", "proj-a", "config_prod.md")
         doc_id, space_id = watcher._parse_path(path)
         assert doc_id == "proj-a/config/prod"
         assert space_id == "space1"
@@ -103,7 +103,7 @@ class TestParsePath:
 
     def test_invalid_path_too_deep(self, tmp_docs_root):
         watcher = _make_watcher(tmp_docs_root)
-        path = os.path.join(tmp_docs_root, "space1", "proj-a", "sub", "requirement.md")
+        path = os.path.join(tmp_docs_root, "space1", "docs", "proj-a", "sub", "requirement.md")
         doc_id, space_id = watcher._parse_path(path)
         assert doc_id is None
         assert space_id is None
@@ -117,14 +117,14 @@ class TestParsePath:
 
     def test_invalid_filename_unknown_type(self, tmp_docs_root):
         watcher = _make_watcher(tmp_docs_root)
-        path = os.path.join(tmp_docs_root, "space1", "proj-a", "unknown.md")
+        path = os.path.join(tmp_docs_root, "space1", "docs", "proj-a", "unknown.md")
         doc_id, space_id = watcher._parse_path(path)
         assert doc_id is None
         assert space_id is None
 
     def test_invalid_config_unknown_stage(self, tmp_docs_root):
         watcher = _make_watcher(tmp_docs_root)
-        path = os.path.join(tmp_docs_root, "space1", "proj-a", "config_staging.md")
+        path = os.path.join(tmp_docs_root, "space1", "docs", "proj-a", "config_staging.md")
         doc_id, space_id = watcher._parse_path(path)
         assert doc_id is None
         assert space_id is None
@@ -144,7 +144,7 @@ class TestProcessFile:
         watcher = _make_watcher(tmp_docs_root, doc_service)
 
         # Create the file
-        space_dir = os.path.join(tmp_docs_root, "space1", "proj-a")
+        space_dir = os.path.join(tmp_docs_root, "space1", "docs", "proj-a")
         os.makedirs(space_dir, exist_ok=True)
         file_path = os.path.join(space_dir, "requirement.md")
         content = "# New content"
@@ -171,7 +171,7 @@ class TestProcessFile:
 
         watcher = _make_watcher(tmp_docs_root, doc_service)
 
-        space_dir = os.path.join(tmp_docs_root, "space1", "proj-a")
+        space_dir = os.path.join(tmp_docs_root, "space1", "docs", "proj-a")
         os.makedirs(space_dir, exist_ok=True)
         file_path = os.path.join(space_dir, "requirement.md")
         with open(file_path, "w") as f:
@@ -206,7 +206,7 @@ class TestProcessFile:
 
         watcher = _make_watcher(tmp_docs_root, doc_service)
 
-        space_dir = os.path.join(tmp_docs_root, "space1", "proj-a")
+        space_dir = os.path.join(tmp_docs_root, "space1", "docs", "proj-a")
         os.makedirs(space_dir, exist_ok=True)
         file_path = os.path.join(space_dir, "design.md")
         with open(file_path, "w") as f:
@@ -230,7 +230,7 @@ class TestDebounce:
 
         watcher = _make_watcher(tmp_docs_root, doc_service)
 
-        space_dir = os.path.join(tmp_docs_root, "space1", "proj-a")
+        space_dir = os.path.join(tmp_docs_root, "space1", "docs", "proj-a")
         os.makedirs(space_dir, exist_ok=True)
         file_path = os.path.join(space_dir, "requirement.md")
         with open(file_path, "w") as f:
@@ -254,7 +254,7 @@ class TestDebounce:
 
         watcher = _make_watcher(tmp_docs_root, doc_service)
 
-        space_dir = os.path.join(tmp_docs_root, "space1", "proj-a")
+        space_dir = os.path.join(tmp_docs_root, "space1", "docs", "proj-a")
         os.makedirs(space_dir, exist_ok=True)
         file_path = os.path.join(space_dir, "requirement.md")
 
@@ -282,7 +282,7 @@ class TestDebounce:
 
         watcher = _make_watcher(tmp_docs_root, doc_service)
 
-        space_dir = os.path.join(tmp_docs_root, "space1", "proj-a")
+        space_dir = os.path.join(tmp_docs_root, "space1", "docs", "proj-a")
         os.makedirs(space_dir, exist_ok=True)
         file_path = os.path.join(space_dir, "requirement.md")
         with open(file_path, "w") as f:

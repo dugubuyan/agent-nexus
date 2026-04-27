@@ -179,7 +179,7 @@ def test_push_writes_file_to_correct_path(db_session, default_space, tmp_docs_ro
     content = "# Requirement doc"
     _push(svc, "sub1/requirement", content, project_space_id=default_space.id)
 
-    expected_path = os.path.join(tmp_docs_root, default_space.id, "sub1", "requirement.md")
+    expected_path = os.path.join(tmp_docs_root, default_space.id, "docs", "sub1", "requirement.md")
     assert os.path.exists(expected_path)
     with open(expected_path, "r", encoding="utf-8") as f:
         assert f.read() == content
@@ -190,7 +190,7 @@ def test_push_config_writes_file_with_stage_suffix(db_session, default_space, tm
     content = "# Dev config"
     _push(svc, "sub1/config/dev", content, project_space_id=default_space.id)
 
-    expected_path = os.path.join(tmp_docs_root, default_space.id, "sub1", "config_dev.md")
+    expected_path = os.path.join(tmp_docs_root, default_space.id, "docs", "sub1", "config_dev.md")
     assert os.path.exists(expected_path)
     with open(expected_path, "r", encoding="utf-8") as f:
         assert f.read() == content
@@ -201,7 +201,7 @@ def test_push_updates_file_on_second_push(db_session, default_space, tmp_docs_ro
     _push(svc, "sub1/api", "# v1", project_space_id=default_space.id)
     _push(svc, "sub1/api", "# v2", project_space_id=default_space.id)
 
-    expected_path = os.path.join(tmp_docs_root, default_space.id, "sub1", "api.md")
+    expected_path = os.path.join(tmp_docs_root, default_space.id, "docs", "sub1", "api.md")
     with open(expected_path, "r", encoding="utf-8") as f:
         assert f.read() == "# v2"
 

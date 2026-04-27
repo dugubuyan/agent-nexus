@@ -681,4 +681,4 @@ class DocumentService:
         doc_variant: Optional[str],
     ) -> str:
         filename = _doc_filename(doc_type, doc_variant)
-        return os.path.join(self._docs_root, project_space_id, subproject_id, filename)
+        return os.path.join(self._docs_root, project_space_id, "docs", subproject_id, filename)
