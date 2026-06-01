@@ -9,7 +9,7 @@ Covers Requirements 8.1-8.5, 10.6, 10.7.
 
 from doc_exchange.models.entities import ProjectSpace, SubProject
 from doc_exchange.services.errors import DocExchangeError
-from doc_exchange.services.schemas import PushRequest
+from doc_exchange.services.schemas import PatchRequest, PushRequest
 
 from .dependencies import ServiceContainer
 
@@ -109,6 +109,44 @@ class ToolHandler:
                 metadata=metadata,
             )
             result = self._c.document_service.push(req)
+            return result.model_dump()
+        except DocExchangeError as exc:
+            return self._error_dict(exc)
+
+    # ------------------------------------------------------------------
+    # Tool: patch_document  (write — incremental update via unified diff)
+    # ------------------------------------------------------------------
+
+    async def patch_document(
+        self,
+        project_id: str,
+        doc_id: str,
+        base_version: int,
+        patch: str,
+    ) -> dict:
+        """
+        Apply a unified diff patch to an existing document, producing a new version.
+
+        Use this instead of push_document when only part of the document changed.
+        The patch must be in unified diff format (as produced by difflib.unified_diff).
+
+        base_version must match the current latest version. If it doesn't, the call
+        returns PATCH_BASE_MISMATCH — fetch the latest with get_document and regenerate.
+
+        Requirements 8.1, 8.4, 10.6, 10.7
+        """
+        try:
+            subproject = self._validate_project(project_id)
+            self._check_not_archived(subproject.project_space_id)
+
+            req = PatchRequest(
+                doc_id=doc_id,
+                base_version=base_version,
+                patch=patch,
+                pushed_by=project_id,
+                project_space_id=subproject.project_space_id,
+            )
+            result = self._c.document_service.patch(req)
             return result.model_dump()
         except DocExchangeError as exc:
             return self._error_dict(exc)
@@ -477,15 +515,18 @@ doc_id 格式：`{{project_id}}/{{doc_type}}`，例如：
 
     async def get_my_updates_with_context(self, project_id: str) -> list[dict]:
         """
-        Return all unread notifications with diff and latest document content included.
+        Return all unread notifications with diff and optionally full document content.
 
         Each item contains:
           - update_id: notification id (use with ack_update when done)
           - doc_id: which document changed
           - doc_type: type of document
           - new_version: the new version number
-          - diff: text summary of what changed (line-level diff)
-          - latest_content: full content of the latest version
+          - diff: unified diff showing what changed (+ added, - removed)
+          - latest_content: full content of the latest version (always included;
+            use get_document if you need a specific older version)
+
+        After processing each update, call ack_update(project_id, update_id).
         """
         try:
             subproject = self._validate_project(project_id)

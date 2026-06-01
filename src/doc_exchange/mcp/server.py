@@ -62,6 +62,35 @@ async def push_document(
 
 
 @mcp.tool()
+async def patch_document(
+    project_id: str,
+    doc_id: str,
+    base_version: int,
+    patch: str,
+) -> dict:
+    """
+    Apply a unified diff patch to an existing document, producing a new version.
+
+    Use instead of push_document when only part of the document changed — avoids
+    sending the full content and works around tool-call payload size limits.
+
+    patch must be in unified diff format (output of difflib.unified_diff).
+    base_version must match the current latest version; if not, returns
+    PATCH_BASE_MISMATCH — call get_document to fetch latest and regenerate.
+    """
+    handler, session = _get_handler()
+    try:
+        result = await handler.patch_document(project_id, doc_id, base_version, patch)
+        session.commit()
+        return result
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+@mcp.tool()
 async def get_document(
     project_id: str,
     doc_id: str,

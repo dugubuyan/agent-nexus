@@ -15,6 +15,14 @@ class PushRequest(BaseModel):
     metadata: dict = {}     # for config type, must contain "stage"
 
 
+class PatchRequest(BaseModel):
+    doc_id: str
+    base_version: int       # version the patch was generated against
+    patch: str              # unified diff string
+    pushed_by: str          # project_id
+    project_space_id: str
+
+
 class PushResult(BaseModel):
     version: int
     doc_id: str
