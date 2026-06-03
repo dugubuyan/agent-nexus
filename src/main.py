@@ -64,9 +64,15 @@ def main() -> None:
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
 
-    # 6. Start MCP server in HTTP mode (multiple agents can connect simultaneously)
-    print(f"Doc Exchange Center running at http://{HOST}:{PORT}/mcp")
-    mcp.run(transport="streamable-http")
+    # 6. Start MCP server
+    # Use stdio transport when MCP_TRANSPORT=stdio (e.g. Glama introspection)
+    # Otherwise use streamable-HTTP for multi-agent use
+    transport = os.environ.get("MCP_TRANSPORT", "streamable-http")
+    if transport == "stdio":
+        mcp.run(transport="stdio")
+    else:
+        print(f"Doc Exchange Center running at http://{HOST}:{PORT}/mcp")
+        mcp.run(transport="streamable-http")
 
 
 if __name__ == "__main__":
