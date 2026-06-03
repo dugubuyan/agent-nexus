@@ -16,6 +16,9 @@ dependencies = [
     "watchdog>=4.0.0",
 ]
 
+[project.scripts]
+doc-exchange-center = "doc_exchange.main:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
