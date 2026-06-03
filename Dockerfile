@@ -8,7 +8,10 @@ COPY src/ src/
 COPY alembic/ alembic/
 COPY alembic.ini .
 
-# Install dependencies
+# Install dependencies to system Python (not editable, ensures proper installation)
+RUN pip install --no-cache-dir sqlalchemy alembic pydantic watchdog "mcp[cli]>=1.0.0" aiosqlite
+
+# Also install the package itself
 RUN pip install --no-cache-dir -e .
 
 # Environment configuration
