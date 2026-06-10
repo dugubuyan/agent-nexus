@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![Tests](https://img.shields.io/badge/tests-250%20passing-brightgreen.svg)](tests/)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20603176.svg)](https://doi.org/10.5281/zenodo.20603176)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20603176-blue)](https://doi.org/10.5281/zenodo.20603176)
 [![agent-nexus MCP server](https://glama.ai/mcp/servers/dugubuyan/agent-nexus/badges/score.svg)](https://glama.ai/mcp/servers/dugubuyan/agent-nexus)
 [![Available on CodeGuilds](https://img.shields.io/badge/Available_on-CodeGuilds-6366f1)](https://codeguilds.dev/packages/agent-nexus)
 > *"Service boundaries, not agent roles, are the appropriate primitive for coordinating LLM agents in real software development."*
