@@ -92,5 +92,16 @@ logs/
 # Kiro IDE (all local IDE config, specs, steering)
 .kiro/
 
+# Paper build artifacts
+paper/_figures/
+paper/_tmp_v3.md
+paper/agentnexus-v3.pdf
+paper/build_pdf.py
+paper/header.tex
+mermaid-filter.err
+
 # Node (if any frontend tooling ends up here)
 node_modules/
+
+# Docs (articles, drafts — not for version control)
+docs/

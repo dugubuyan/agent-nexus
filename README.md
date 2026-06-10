@@ -4,8 +4,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-191%20passing-brightgreen.svg)](tests/)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19692217.svg)](https://doi.org/10.5281/zenodo.19692217)
+[![Tests](https://img.shields.io/badge/tests-250%20passing-brightgreen.svg)](tests/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20603176.svg)](https://doi.org/10.5281/zenodo.20603176)
 [![agent-nexus MCP server](https://glama.ai/mcp/servers/dugubuyan/agent-nexus/badges/score.svg)](https://glama.ai/mcp/servers/dugubuyan/agent-nexus)
 > *"Service boundaries, not agent roles, are the appropriate primitive for coordinating LLM agents in real software development."*
 
@@ -21,9 +21,10 @@ Each service registers as a sub-project, publishes versioned Markdown documents 
 - **Publish-subscribe notifications** — subscribe by exact doc ID or doc type
 - **Diff-aware updates** — `get_my_updates_with_context` returns unified diff + full content in one call
 - **Lifecycle stage tracking** — explicit `design → development → testing → deployment → upgrade` per service, with milestone snapshots on transitions
+- **Service-Driven Agent Onboarding (SDAOP)** — `generate_instruction_file` auto-generates IDE steering files (AGENTS.md, CLAUDE.md, Kiro steering, Cursor rules) for any connecting agent
 - **MCP HTTP server** — streamable-HTTP transport, multiple agents connect simultaneously
 - **FileWatcher ingestion** — auto-ingest Markdown files from `/docs/` directory as draft documents
-- **191 tests** — unit + property-based (Hypothesis)
+- **250 tests** — unit + property-based (Hypothesis)
 
 ## Architecture
 
@@ -94,7 +95,9 @@ get_my_updates_with_context(project_id="<frontend_id>")
 | `create_space` | Create a Project Space |
 | `register_project` | Register a sub-project (service) |
 | `list_projects` | List all sub-projects in a space |
-| `push_document` | Push a new document version |
+| `list_documents` | List all documents in a sub-project |
+| `push_document` | Push a new document version (full content) |
+| `patch_document` | Apply a unified diff patch to a document |
 | `get_document` | Retrieve a document (latest or specific version) |
 | `get_my_updates_with_context` | Get unread notifications with diff + full content |
 | `ack_update` | Mark a notification as read |
@@ -102,7 +105,7 @@ get_my_updates_with_context(project_id="<frontend_id>")
 | `get_config` | Get config document for a stage |
 | `add_subscription` | Add a subscription rule |
 | `publish_draft` | Confirm a draft document |
-| `generate_steering_file` | Generate IDE steering file content |
+| `generate_instruction_file` | Generate IDE onboarding file (SDAOP) |
 | `get_project_id_by_name` | Look up project_id by name |
 
 ## Configuration
@@ -117,13 +120,15 @@ get_my_updates_with_context(project_id="<frontend_id>")
 
 ## Steering File Integration
 
-Each sub-project's IDE agent uses a steering file to auto-check for updates. Generate one with:
+Each sub-project's IDE agent uses an onboarding file (steering file, CLAUDE.md, AGENTS.md, etc.) to auto-check for updates at session start. Generate one with:
 
 ```
-generate_steering_file(project_name="my-service", project_space_id="<space_id>")
+generate_instruction_file(project_name="my-service", project_space_id="<space_id>", client_type="kiro")
 ```
 
-See [`doc-exchange-steering-template.md`](doc-exchange-steering-template.md) for the template.
+Supported `client_type` values: `kiro`, `claude`, `codex`, `cursor`.
+
+This is the **Service-Driven Agent Onboarding Protocol (SDAOP)** — the MCP service generates the onboarding document itself, so agents require zero manual configuration. See the [v3 paper](paper/agentnexus-v3.md) for the formal protocol definition.
 
 ## Running Tests
 
@@ -133,9 +138,12 @@ python -m pytest tests/ -q
 
 ## Paper
 
-The accompanying research paper is available in [`paper/agentnexus.md`](paper/agentnexus.md).
+The accompanying research papers are available in the [`paper/`](paper/) directory:
 
-> dugubuyan. *AgentNexus: A Service-Boundary-Aware Coordination Architecture for Heterogeneous LLM Code Agents.* 2026.
+- [`paper/agentnexus-v3.md`](paper/agentnexus-v3.md) — v3 (current): adds SDAOP
+- [`paper/agentnexus.md`](paper/agentnexus.md) — v2
+
+> dugubuyan. *AgentNexus: A Service-Boundary-Aware Coordination Architecture for Heterogeneous LLM Code Agents (v3).* Zenodo, 2026. https://doi.org/10.5281/zenodo.20603176
 
 ## License
 
