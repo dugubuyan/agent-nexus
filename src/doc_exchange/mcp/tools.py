@@ -261,61 +261,342 @@ class ToolHandler:
             return [self._error_dict(exc)]
 
     # ------------------------------------------------------------------
+    # Tool: get_document_checklist  (read)
+    # ------------------------------------------------------------------
+
+    # Built-in checklist rules indexed by (project_type, stage).
+    # "*" as project_type means "any type not explicitly listed".
+    # Values are doc_type prefixes; prefix matching is used when checking
+    # existing docs (e.g. "config" matches config/dev, config/prod, etc.)
+    # Full variant paths like "runbook/deploy" are also supported and matched exactly.
+    _BUILTIN_CHECKLISTS: dict = {
+        # --- development projects ---
+        ("development", "design"):      {"required": ["requirement"],                        "recommended": ["design"]},
+        ("development", "development"): {"required": ["requirement", "design", "api"],       "recommended": ["task", "schema", "config"]},
+        ("development", "testing"):     {"required": ["api", "test-plan"],                   "recommended": ["task", "config", "requirement"]},
+        ("development", "deployment"):  {"required": ["config", "runbook"],                  "recommended": ["changelog"]},
+        ("development", "upgrade"):     {"required": ["changelog", "config"],                "recommended": ["runbook", "api"]},
+        # --- testing projects ---
+        ("testing", "design"):          {"required": ["test-plan"],                          "recommended": ["requirement"]},
+        ("testing", "development"):     {"required": ["test-plan", "api"],                   "recommended": ["task", "config"]},
+        ("testing", "testing"):         {"required": ["test-plan", "api"],                   "recommended": ["task", "config/test"]},
+        ("testing", "deployment"):      {"required": ["test-plan", "config/test"],           "recommended": []},
+        ("testing", "upgrade"):         {"required": ["test-plan", "changelog"],             "recommended": []},
+        # --- infra projects ---
+        ("infra", "design"):            {"required": ["design"],                             "recommended": ["requirement"]},
+        ("infra", "development"):       {"required": ["design", "config/prod"],              "recommended": ["runbook/deploy", "schema"]},
+        ("infra", "testing"):           {"required": ["runbook/deploy", "config/prod"],      "recommended": ["runbook/rollback"]},
+        ("infra", "deployment"):        {"required": ["runbook/deploy", "config/prod"],      "recommended": ["runbook/rollback", "changelog"]},
+        ("infra", "upgrade"):           {"required": ["runbook/rollback", "changelog", "config/prod"], "recommended": ["runbook/deploy"]},
+        # --- ops projects ---
+        ("ops", "design"):              {"required": ["requirement"],                        "recommended": ["design"]},
+        ("ops", "development"):         {"required": ["requirement", "config"],              "recommended": ["runbook", "schema"]},
+        ("ops", "testing"):             {"required": ["config", "runbook"],                  "recommended": ["test-plan"]},
+        ("ops", "deployment"):          {"required": ["config/prod", "runbook/deploy"],      "recommended": ["runbook/rollback"]},
+        ("ops", "upgrade"):             {"required": ["changelog", "config/prod"],           "recommended": ["runbook/rollback"]},
+        # --- shared projects ---
+        ("shared", "design"):           {"required": ["requirement", "design"],              "recommended": []},
+        ("shared", "development"):      {"required": ["requirement", "design", "api"],       "recommended": ["schema", "changelog"]},
+        ("shared", "testing"):          {"required": ["api", "test-plan"],                   "recommended": ["changelog"]},
+        ("shared", "deployment"):       {"required": ["api", "config"],                      "recommended": ["changelog"]},
+        ("shared", "upgrade"):          {"required": ["changelog/breaking", "api"],          "recommended": ["config"]},
+        # --- fallback for unknown types ---
+        ("*", "design"):                {"required": ["requirement"],                        "recommended": ["design"]},
+        ("*", "development"):           {"required": ["requirement", "design"],              "recommended": ["api", "task"]},
+        ("*", "testing"):               {"required": ["test-plan"],                          "recommended": ["config"]},
+        ("*", "deployment"):            {"required": ["config", "runbook"],                  "recommended": []},
+        ("*", "upgrade"):               {"required": ["changelog"],                          "recommended": ["config"]},
+    }
+
+    _DOC_TYPE_DESCRIPTIONS: dict = {
+        "requirement":       "Functional and non-functional requirements",
+        "design":            "Architecture and technical design",
+        "api":               "API contracts (REST, GraphQL, gRPC, etc.)",
+        "config":            "Environment configuration (dev/test/prod)",
+        "config/dev":        "Development environment configuration",
+        "config/test":       "Test environment configuration",
+        "config/prod":       "Production environment configuration",
+        "schema":            "Database or message queue schema",
+        "schema/db":         "Database schema",
+        "runbook":           "Operational procedures",
+        "runbook/deploy":    "Deployment procedure",
+        "runbook/rollback":  "Rollback procedure",
+        "changelog":         "Release notes and breaking changes",
+        "changelog/notes":   "Cumulative release notes",
+        "changelog/breaking":"Breaking changes for current release",
+        "test-plan":         "Test strategy and test cases",
+        "task":              "Work items and implementation plans",
+        "task/checklist":    "Custom document checklist for this project",
+    }
+
+    @staticmethod
+    def _parse_checklist_markdown(content: str) -> dict[str, list[dict]]:
+        """
+        Parse a custom checklist document in the agreed Markdown format:
+
+            ## Required
+            - doc_type: description
+
+            ## Recommended
+            - doc_type: description
+
+        Returns {"required": [...], "recommended": [...]} where each item is
+        {"doc_type": str, "description": str}.
+        """
+        import re
+        result: dict[str, list[dict]] = {"required": [], "recommended": []}
+        current_section: str | None = None
+
+        for line in content.splitlines():
+            stripped = line.strip()
+            # Detect section headings
+            if re.match(r"^#{1,3}\s+Required\s*$", stripped, re.IGNORECASE):
+                current_section = "required"
+            elif re.match(r"^#{1,3}\s+Recommended\s*$", stripped, re.IGNORECASE):
+                current_section = "recommended"
+            elif stripped.startswith("-") and current_section:
+                # Parse "- doc_type: description" or "- doc_type"
+                item = stripped.lstrip("- ").strip()
+                if ":" in item:
+                    doc_type, _, description = item.partition(":")
+                    doc_type = doc_type.strip()
+                    description = description.strip()
+                else:
+                    doc_type = item.strip()
+                    description = ""
+                if doc_type:
+                    result[current_section].append({
+                        "doc_type": doc_type,
+                        "description": description,
+                    })
+        return result
+
+    def _get_builtin_rules(self, project_type: str, stage: str) -> dict:
+        """Return the built-in required/recommended lists for (project_type, stage)."""
+        key = (project_type, stage)
+        if key in self._BUILTIN_CHECKLISTS:
+            return self._BUILTIN_CHECKLISTS[key]
+        # fallback to wildcard
+        fallback = ("*", stage)
+        if fallback in self._BUILTIN_CHECKLISTS:
+            return self._BUILTIN_CHECKLISTS[fallback]
+        return {"required": [], "recommended": []}
+
+    async def get_document_checklist(self, project_id: str) -> dict:
+        """
+        Return the document completeness checklist for the given project.
+
+        Priority:
+          1. If a custom checklist document exists at {project_id}/task/checklist,
+             parse and use it (Markdown list format — see push_document for the format).
+          2. Otherwise fall back to the built-in rules for the project's (type, stage).
+
+        Use this at session start to know what documents to create before proceeding.
+        To define a custom checklist, push a document with:
+          doc_id = "{project_id}/task/checklist"
+          content = Markdown with ## Required and ## Recommended sections,
+                    each containing "- doc_type: description" list items.
+        """
+        try:
+            subproject = self._validate_project(project_id)
+
+            from doc_exchange.models.entities import Document, DocumentVersion, DocumentVersionContent
+
+            # Fetch all existing documents for this project
+            existing_docs = (
+                self._c.db.query(Document)
+                .filter(
+                    Document.subproject_id == project_id,
+                    Document.project_space_id == subproject.project_space_id,
+                )
+                .all()
+            )
+
+            # Build lookup: prefix → {doc_id, latest_version}
+            # Also store full variant paths for exact matching
+            present_map: dict[str, dict] = {}  # keyed by doc_type prefix
+            present_full_map: dict[str, dict] = {}  # keyed by "doc_type/variant" or "doc_type"
+            custom_checklist_content: str | None = None
+            checklist_doc_id = f"{project_id}/task/checklist"
+
+            for doc in existing_docs:
+                prefix = doc.doc_type
+                full_key = f"{doc.doc_type}/{doc.doc_variant}" if doc.doc_variant else doc.doc_type
+                entry = {"doc_id": doc.id, "latest_version": doc.latest_version}
+                # Keep highest version per prefix
+                if prefix not in present_map or doc.latest_version > present_map[prefix]["latest_version"]:
+                    present_map[prefix] = entry
+                present_full_map[full_key] = entry
+                # Check for custom checklist
+                if doc.id == checklist_doc_id and doc.latest_version > 0:
+                    ver = (
+                        self._c.db.query(DocumentVersion)
+                        .filter(
+                            DocumentVersion.document_id == doc.id,
+                            DocumentVersion.version == doc.latest_version,
+                        )
+                        .first()
+                    )
+                    if ver:
+                        content_rec = (
+                            self._c.db.query(DocumentVersionContent)
+                            .filter(DocumentVersionContent.version_id == ver.id)
+                            .first()
+                        )
+                        if content_rec:
+                            custom_checklist_content = content_rec.content
+
+            # Determine rules: custom or built-in
+            if custom_checklist_content:
+                parsed = self._parse_checklist_markdown(custom_checklist_content)
+                required_spec = parsed["required"]    # list of {"doc_type", "description"}
+                recommended_spec = parsed["recommended"]
+                checklist_source = "custom"
+            else:
+                rules = self._get_builtin_rules(subproject.type, subproject.stage)
+                required_spec = [
+                    {"doc_type": dt, "description": self._DOC_TYPE_DESCRIPTIONS.get(dt, "")}
+                    for dt in rules.get("required", [])
+                ]
+                recommended_spec = [
+                    {"doc_type": dt, "description": self._DOC_TYPE_DESCRIPTIONS.get(dt, "")}
+                    for dt in rules.get("recommended", [])
+                ]
+                checklist_source = "builtin"
+
+            def _is_present(doc_type: str) -> dict | None:
+                """Check presence using exact full path first, then prefix."""
+                if doc_type in present_full_map:
+                    return present_full_map[doc_type]
+                prefix = doc_type.split("/")[0]
+                if prefix in present_map:
+                    return present_map[prefix]
+                return None
+
+            def _build_entries(spec: list[dict]) -> list[dict]:
+                entries = []
+                for item in spec:
+                    dt = item["doc_type"]
+                    desc = item.get("description") or self._DOC_TYPE_DESCRIPTIONS.get(dt, "")
+                    found = _is_present(dt)
+                    if found:
+                        entries.append({
+                            "doc_type": dt,
+                            "status": "present",
+                            "doc_id": found["doc_id"],
+                            "latest_version": found["latest_version"],
+                            "description": desc,
+                        })
+                    else:
+                        entries.append({
+                            "doc_type": dt,
+                            "status": "missing",
+                            "description": desc,
+                            "suggested_doc_id": f"{project_id}/{dt}",
+                        })
+                return entries
+
+            required_entries = _build_entries(required_spec)
+            recommended_entries = _build_entries(recommended_spec)
+            present_required = sum(1 for e in required_entries if e["status"] == "present")
+            total_required = len(required_entries)
+
+            result = {
+                "project_id": project_id,
+                "project_name": subproject.name,
+                "project_type": subproject.type,
+                "stage": subproject.stage,
+                "checklist_source": checklist_source,
+                "required_docs": required_entries,
+                "recommended_docs": recommended_entries,
+                "completeness": f"{present_required}/{total_required} required docs present",
+                "all_required_present": present_required == total_required,
+            }
+            if checklist_source == "builtin":
+                result["hint"] = (
+                    f"Using built-in checklist for type='{subproject.type}', stage='{subproject.stage}'. "
+                    f"To customize, push a document with doc_id='{checklist_doc_id}' containing "
+                    "## Required and ## Recommended Markdown sections."
+                )
+            return result
+        except DocExchangeError as exc:
+            return self._error_dict(exc)
+
+    # ------------------------------------------------------------------
     # Admin tool: generate_steering_file
     # ------------------------------------------------------------------
 
     async def generate_steering_file(
-        self, project_name: str, project_space_id: str
+        self, project_name: str, project_space_id: str, client_type: str = "kiro"
     ) -> dict:
         """
-        Generate the content for a .kiro/steering/doc-exchange.md file.
-        The sub-project Kiro should create this file to enable auto doc-update checks.
+        Generate an agent instruction file (SDAOP) for the given client type.
         """
-        content = f"""---
-inclusion: auto
----
-
-# 文档交换中心接入指南
-
-本项目已接入团队文档交换中心（Doc Exchange Center）。
-
-## 项目信息
+        workflow_content = f"""## Service Identity
 
 - project_name: `{project_name}`
 - project_space_id: `{project_space_id}`
-- MCP 服务地址: `http://localhost:10086/mcp`
+- MCP endpoint: `http://localhost:10086/mcp`
 
-## 工作流程
+## Initialization Workflow
 
-### 每次开始工作时
+At the start of every session:
 
-1. 调用 `get_project_id_by_name(name="{project_name}", project_space_id="{project_space_id}")` 获取本项目的 project_id
-2. 调用 `get_my_updates_with_context(project_id=<上一步返回的project_id>)` 检查是否有文档更新
+1. Call `get_project_id_by_name(name="{project_name}", project_space_id="{project_space_id}")` to resolve your project_id.
+2. Call `get_my_updates_with_context(project_id=<project_id>)` to check for pending document changes.
+3. Call `get_document_checklist(project_id=<project_id>)` to see which documents are missing for your current stage.
 
-返回结果包含：
-- `update_id`：通知 ID，处理完后需调用 `ack_update` 标记已读
-- `doc_type`：文档类型（requirement/design/api/config/task）
-- `new_version`：新版本号
-- `diff`：与上一版本的差异（unified diff 格式，`+` 为新增，`-` 为删除）
-- `latest_content`：最新完整文档内容
+For step 2, each update contains:
+- `update_id`: acknowledge with `ack_update` after processing
+- `doc_type`: type of document (requirement/design/api/config/task)
+- `new_version`: new version number
+- `diff`: unified diff showing what changed (+ added, - removed)
+- `latest_content`: full current document content
 
-**处理规则：**
-- 有更新时：根据 `diff` 定位需要修改的代码位置，根据 `latest_content` 确认修改内容，完成后调用 `ack_update(project_id, update_id)` 标记已读
-- 无更新时：直接继续正常工作
+If updates exist: apply changes based on `diff` and `latest_content`, then call `ack_update(project_id, update_id)`.
 
-### 完成重要功能或文档变更时
+For step 3, if `all_required_present` is false, create the missing documents listed in `required_docs`
+before proceeding with other work. Use `suggested_doc_id` as the doc_id when calling `push_document`.
 
-先获取 project_id（调用 `get_project_id_by_name`），再调用 `push_document` 将本项目的最新文档推送到文档交换中心。
+## Document Convention
 
-doc_id 格式：`{{project_id}}/{{doc_type}}`，例如：
+doc_id format: `{{project_id}}/{{doc_type}}`
+
+Examples:
 - `{{project_id}}/requirement`
 - `{{project_id}}/api`
 - `{{project_id}}/design`
+- `{{project_id}}/config/dev`
+
+## Update Handling
+
+After completing significant changes, push updated documents:
+`push_document(project_id=<project_id>, doc_id="<project_id>/<doc_type>", content="<markdown content>")`
 """
+
+        client_type = client_type.lower()
+
+        if client_type == "kiro":
+            file_path = ".kiro/steering/doc-exchange.md"
+            content = f"---\ninclusion: auto\n---\n\n# Doc Exchange Center\n\n{workflow_content}"
+        elif client_type == "claude":
+            file_path = "CLAUDE.md"
+            content = f"# Doc Exchange Center\n\n{workflow_content}"
+        elif client_type == "codex":
+            file_path = "AGENTS.md"
+            content = f"# Doc Exchange Center\n\n{workflow_content}"
+        elif client_type == "cursor":
+            file_path = ".cursor/rules/doc-exchange.mdc"
+            content = f"---\nalwaysApply: true\n---\n\n# Doc Exchange Center\n\n{workflow_content}"
+        else:
+            # fallback to kiro
+            file_path = ".kiro/steering/doc-exchange.md"
+            content = f"---\ninclusion: auto\n---\n\n# Doc Exchange Center\n\n{workflow_content}"
+
         return {
-            "steering_file_path": ".kiro/steering/doc-exchange.md",
-            "steering_file_content": content,
-            "instruction": "请将 steering_file_content 的内容写入 steering_file_path 文件。",
+            "file_path": file_path,
+            "file_content": content,
+            "instruction": f"Write file_content to {file_path}.",
         }
 
     # ------------------------------------------------------------------

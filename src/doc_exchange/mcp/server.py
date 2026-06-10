@@ -71,12 +71,21 @@ async def patch_document(
     """
     Apply a unified diff patch to an existing document, producing a new version.
 
-    Use instead of push_document when only part of the document changed — avoids
-    sending the full content and works around tool-call payload size limits.
+    Use instead of push_document when only part of the document changed.
+    Suitable for large documents where push_document would exceed payload limits.
 
-    patch must be in unified diff format (output of difflib.unified_diff).
+    IMPORTANT: The patch MUST be generated programmatically (e.g., via difflib.unified_diff
+    on the actual file content), NOT hand-written. Hand-written diffs are prone to
+    line-number errors and will fail with PATCH_APPLY_FAILED.
+
+    Recommended workflow:
+      1. Read the current document with get_document to get the exact stored content.
+      2. Write the modified content to a local file.
+      3. Use a code tool to compute difflib.unified_diff between the two versions.
+      4. Pass the resulting diff string as the patch parameter.
+
     base_version must match the current latest version; if not, returns
-    PATCH_BASE_MISMATCH — call get_document to fetch latest and regenerate.
+    PATCH_BASE_MISMATCH — call get_document to fetch latest and regenerate the patch.
     """
     handler, session = _get_handler()
     try:
@@ -120,7 +129,10 @@ async def get_my_updates_with_context(project_id: str) -> list[dict]:
 
 @mcp.tool()
 async def get_my_updates(project_id: str) -> list[dict]:
-    """Return all unread notifications for the given project."""
+    """
+    [DEPRECATED] Return unread notification IDs only — use get_my_updates_with_context instead.
+    get_my_updates_with_context returns diff + full content in one call, making this redundant.
+    """
     handler, session = _get_handler()
     try:
         return await handler.get_my_updates(project_id)
@@ -155,10 +167,38 @@ async def get_my_tasks(project_id: str) -> list[dict]:
 
 @mcp.tool()
 async def get_config(project_id: str, stage: str) -> dict:
-    """Return the config document for the given project and stage."""
+    """
+    [DEPRECATED] Return the config document for the given project and stage.
+    Use get_document(project_id, f"{project_id}/config/{stage}") directly instead — it is equivalent and more flexible.
+    """
     handler, session = _get_handler()
     try:
         return await handler.get_config(project_id, stage)
+    finally:
+        session.close()
+
+
+@mcp.tool()
+async def get_document_checklist(project_id: str) -> dict:
+    """
+    Return the document completeness checklist for the given project.
+
+    Based on the project's current lifecycle stage, reports which documents
+    are required or recommended, and which are present or missing.
+
+    Call this at session start alongside get_my_updates_with_context to know
+    what documents need to be created before proceeding with work.
+
+    Returns:
+      - required_docs: documents that must exist for the current stage
+      - recommended_docs: documents that are helpful but not mandatory
+      - completeness: summary string (e.g. "1/3 required docs present")
+      - all_required_present: boolean — false means action is needed
+      - suggested_doc_id: the doc_id to use when calling push_document to create a missing doc
+    """
+    handler, session = _get_handler()
+    try:
+        return await handler.get_document_checklist(project_id)
     finally:
         session.close()
 
@@ -169,14 +209,44 @@ async def get_config(project_id: str, stage: str) -> dict:
 
 
 @mcp.tool()
-async def generate_steering_file(project_name: str, project_space_id: str) -> dict:
+async def generate_instruction_file(
+    project_name: str,
+    project_space_id: str,
+    client_type: str = "kiro",
+) -> dict:
     """
-    Generate the content for a .kiro/steering/doc-exchange.md Steering file.
-    The sub-project Kiro should create this file to enable automatic doc-update checks.
+    Generate an agent instruction file for the given project and IDE client.
+
+    This implements the Service-Driven Agent Onboarding Protocol (SDAOP): the MCP
+    service generates the onboarding document itself, so connecting agents require
+    zero manual configuration.
+
+    The agent should write the returned file_content to the returned file_path.
+    On subsequent sessions, the client will auto-load the file and the agent will
+    know how to interact with this service.
+
+    client_type values and their target files:
+      - "kiro"   → .kiro/steering/doc-exchange.md  (inclusion: auto frontmatter)
+      - "claude" → CLAUDE.md                        (plain markdown)
+      - "codex"  → AGENTS.md                        (plain markdown)
+      - "cursor" → .cursor/rules/doc-exchange.mdc   (alwaysApply frontmatter)
     """
     handler, session = _get_handler()
     try:
-        return await handler.generate_steering_file(project_name, project_space_id)
+        return await handler.generate_steering_file(project_name, project_space_id, client_type)
+    finally:
+        session.close()
+
+
+@mcp.tool()
+async def generate_steering_file(project_name: str, project_space_id: str) -> dict:
+    """
+    [DEPRECATED] Use generate_instruction_file instead, which supports multiple client types.
+    Generates a Kiro steering file — equivalent to generate_instruction_file with client_type="kiro".
+    """
+    handler, session = _get_handler()
+    try:
+        return await handler.generate_steering_file(project_name, project_space_id, "kiro")
     finally:
         session.close()
 
@@ -271,7 +341,19 @@ async def publish_draft(
     doc_id: str,
     version: int,
 ) -> dict:
-    """Confirm a draft document version, publishing it and triggering notifications."""
+    """
+    Confirm a draft document version, publishing it and triggering notifications.
+
+    Only applicable when a document was pushed with pushed_by="system_llm", which
+    creates a draft instead of publishing immediately. In normal agent workflows
+    (where the agent calls push_document with its own project_id), documents are
+    published automatically and this tool is not needed.
+
+    Use this tool when a human or orchestration system wants to review and approve
+    an LLM-generated document before it propagates to subscribers.
+
+    Raises INVALID_STATUS_TRANSITION if the version does not exist or is already published.
+    """
     handler, session = _get_handler()
     try:
         result = await handler.publish_draft(project_id, doc_id, version)
