@@ -45,6 +45,34 @@ Each service registers as a sub-project, publishes versioned Markdown documents 
 └─────────────────────────────────────────────────────┘
 ```
 
+## How It Works
+
+When a backend service updates its API document, the frontend agent is automatically notified with a structured diff — no human coordination needed:
+
+```
+Backend Agent              AgentNexus               Frontend Agent
+      │                        │                          │
+      │── push_document ──────▶│                          │
+      │   (api, new version)   │── notification ─────────▶│
+      │                        │                          │── get_my_updates_with_context()
+      │                        │◀─────────────────────────│
+      │                        │── diff + full content ──▶│
+      │                        │                          │── apply targeted code changes
+      │                        │                          │── ack_update() ────────────▶│
+      │                        │                          │
+```
+
+The diff payload looks like:
+
+```json
+{
+  "doc_id": "backend-service/api",
+  "new_version": 5,
+  "diff": "@@ -42,6 +42,12 @@\n+## PUT /admin/docs/{doc_id}\n+Update a document in-place...",
+  "latest_content": "# API Spec\n\n..."
+}
+```
+
 ## Quick Start
 
 ```bash
