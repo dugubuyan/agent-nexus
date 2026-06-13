@@ -9,7 +9,7 @@ Covers Requirements 8.1-8.5, 10.6, 10.7.
 
 from doc_exchange.models.entities import ProjectSpace, SubProject
 from doc_exchange.services.errors import DocExchangeError
-from doc_exchange.services.schemas import PatchRequest, PushRequest
+from doc_exchange.services.schemas import PushRequest
 
 from .dependencies import ServiceContainer
 
@@ -109,44 +109,6 @@ class ToolHandler:
                 metadata=metadata,
             )
             result = self._c.document_service.push(req)
-            return result.model_dump()
-        except DocExchangeError as exc:
-            return self._error_dict(exc)
-
-    # ------------------------------------------------------------------
-    # Tool: patch_document  (write — incremental update via unified diff)
-    # ------------------------------------------------------------------
-
-    async def patch_document(
-        self,
-        project_id: str,
-        doc_id: str,
-        base_version: int,
-        patch: str,
-    ) -> dict:
-        """
-        Apply a unified diff patch to an existing document, producing a new version.
-
-        Use this instead of push_document when only part of the document changed.
-        The patch must be in unified diff format (as produced by difflib.unified_diff).
-
-        base_version must match the current latest version. If it doesn't, the call
-        returns PATCH_BASE_MISMATCH — fetch the latest with get_document and regenerate.
-
-        Requirements 8.1, 8.4, 10.6, 10.7
-        """
-        try:
-            subproject = self._validate_project(project_id)
-            self._check_not_archived(subproject.project_space_id)
-
-            req = PatchRequest(
-                doc_id=doc_id,
-                base_version=base_version,
-                patch=patch,
-                pushed_by=project_id,
-                project_space_id=subproject.project_space_id,
-            )
-            result = self._c.document_service.patch(req)
             return result.model_dump()
         except DocExchangeError as exc:
             return self._error_dict(exc)
@@ -922,5 +884,162 @@ After completing significant changes, push updated documents:
                 project_space_id=subproject.project_space_id,
             )
             return result.model_dump()
+        except DocExchangeError as exc:
+            return self._error_dict(exc)
+
+    # ------------------------------------------------------------------
+    # Tool: search_documents  (read — FTS5 full-text search)
+    # ------------------------------------------------------------------
+
+    async def search_documents(
+        self,
+        project_space_id: str,
+        query: str,
+        doc_type: str | None = None,
+        subproject_id: str | None = None,
+        limit: int = 10,
+    ) -> list[dict]:
+        """
+        Full-text search across all published documents in a project space.
+
+        Supports FTS5 query syntax:
+          - Keywords:      authentication
+          - Phrases:       "user authentication"
+          - Prefix:        auth*
+          - Boolean:       authentication NOT oauth  (use NOT, not AND NOT)
+
+        Results are ranked by BM25 relevance (most relevant first).
+        Each result includes a snippet with matched terms highlighted using >>> / <<<.
+
+        Requirements 2.1-2.7
+        """
+        try:
+            # Cap limit to 50
+            limit = min(limit, 50)
+
+            from doc_exchange.search.fts import search as fts_search
+            results = fts_search(
+                db=self._c.db,
+                project_space_id=project_space_id,
+                query=query,
+                doc_type=doc_type,
+                subproject_id=subproject_id,
+                limit=limit,
+            )
+
+            # Enrich each result with latest_version from the documents table
+            from doc_exchange.models.entities import Document
+            enriched = []
+            for r in results:
+                doc = (
+                    self._c.db.query(Document)
+                    .filter(Document.id == r["doc_id"])
+                    .first()
+                )
+                enriched.append({
+                    "doc_id": r["doc_id"],
+                    "subproject_id": r["subproject_id"],
+                    "doc_type": r["doc_type"],
+                    "latest_version": doc.latest_version if doc else None,
+                    "snippet": r["snippet"],
+                    "rank": r["rank"],
+                })
+            return enriched
+
+        except DocExchangeError as exc:
+            return [self._error_dict(exc)]
+
+    # ------------------------------------------------------------------
+    # Planner tools (read-only AI inference + cross-project overview)
+    # ------------------------------------------------------------------
+
+    async def planner_chat(
+        self,
+        space_id: str,
+        question: str,
+        doc_ids: list[str] | None = None,
+    ) -> dict:
+        """
+        Ask the Planner a question with cross-service document context (read-only).
+
+        Delegates to PlannerService.chat(). Returns {"answer": <str>} on
+        success, or an error dict when the LLM is not configured or a
+        DocExchangeError occurs.
+
+        Requirements 2.1, 4.1
+        """
+        try:
+            result = await self._c.planner_service.chat(
+                space_id=space_id,
+                question=question,
+                doc_ids=doc_ids,
+            )
+            # Normalise: str answer → {"answer": str}; dict (error etc.) passes through
+            if isinstance(result, str):
+                return {"answer": result}
+            return result
+        except DocExchangeError as exc:
+            return self._error_dict(exc)
+
+    async def planner_plan(self, space_id: str, description: str) -> dict:
+        """
+        Propose a service decomposition (SubProjects + deps + draft docs).
+
+        Returns a proposal dict only; does NOT persist anything to the database.
+        The caller decides whether to act on the proposal.
+
+        Delegates to PlannerService.plan().
+
+        Requirements 2.2, 4.1
+        """
+        try:
+            return await self._c.planner_service.plan(
+                space_id=space_id,
+                description=description,
+            )
+        except DocExchangeError as exc:
+            return self._error_dict(exc)
+
+    async def planner_overview(self, space_id: str) -> dict:
+        """
+        Cross-subproject document overview for a space (read-only global view).
+
+        Calls PlannerService.list_projects() to enumerate all sub-projects in
+        the space, then fetches their documents via ToolHandler.list_documents()
+        for each project.
+
+        Returns:
+          {
+            "space_id": str,
+            "projects": [
+              {
+                "project_id": str,
+                "name": str,
+                "type": str,
+                "stage": str,
+                "documents": [...]   # same shape as list_documents()
+              },
+              ...
+            ]
+          }
+
+        Requirements 4.1
+        """
+        try:
+            projects_raw = self._c.planner_service.list_projects(space_id)
+            projects_out = []
+            for proj in projects_raw:
+                project_id = proj["project_id"]
+                docs = await self.list_documents(project_id)
+                projects_out.append(
+                    {
+                        "project_id": project_id,
+                        "name": proj["name"],
+                        "type": proj["type"],
+                        "stage": proj["stage"],
+                        "documents": docs,
+                    }
+                )
+            return {"space_id": space_id, "projects": projects_out}
         except DocExchangeError as exc:
             return self._error_dict(exc)

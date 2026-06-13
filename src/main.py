@@ -1,22 +1,18 @@
 """
 Main entry point for the Doc Exchange Center.
 
-Sets up the SQLite database, creates all services, starts FileWatcherService
-in a background thread, then starts the MCP server in HTTP mode so multiple
-agents can connect simultaneously.
+Starts the MCP server in HTTP mode so multiple agents can connect simultaneously.
+Also serves the Web Dashboard at http://{HOST}:{PORT}/.
 
-Default: http://0.0.0.0:10000/mcp
+Default: http://0.0.0.0:10086/mcp
 Configure via env vars:
   DOC_EXCHANGE_DB_URL           (default: sqlite:///doc_exchange.db)
   DOC_EXCHANGE_DOCS_ROOT        (default: ./workspace)
-  DOC_EXCHANGE_DEFAULT_SPACE_ID (default: default)
   DOC_EXCHANGE_HOST             (default: 0.0.0.0)
-  DOC_EXCHANGE_PORT             (default: 10000)
+  DOC_EXCHANGE_PORT             (default: 10086)
 """
 
 import os
-import signal
-import sys
 
 # Read config BEFORE importing server.py, because server.py creates the
 # FastMCP instance at import time and reads host/port from env vars.
@@ -24,47 +20,27 @@ HOST = os.environ.get("DOC_EXCHANGE_HOST", "0.0.0.0")
 PORT = int(os.environ.get("DOC_EXCHANGE_PORT", "10086"))
 
 from doc_exchange.models import Base
-from doc_exchange.mcp.dependencies import make_engine, make_session_factory, ServiceContainer
+from doc_exchange.mcp.dependencies import make_engine
 from doc_exchange.mcp.server import mcp
-from doc_exchange.services.file_watcher_service import FileWatcherService
 
 DB_URL = os.environ.get("DOC_EXCHANGE_DB_URL", "sqlite:///doc_exchange.db")
 DOCS_ROOT = os.environ.get("DOC_EXCHANGE_DOCS_ROOT", "./workspace")
-DEFAULT_SPACE_ID = os.environ.get("DOC_EXCHANGE_DEFAULT_SPACE_ID", "default")
 
 
 def main() -> None:
     # 1. Set up database
     engine = make_engine(DB_URL)
     Base.metadata.create_all(engine)
-    SessionLocal = make_session_factory(DB_URL)
 
-    # 2. Ensure docs root exists
+    # 2. Initialize FTS5 full-text search table (idempotent, backfills historical data)
+    from doc_exchange.search.fts import ensure_fts_table, rebuild_fts_index_if_empty
+    ensure_fts_table(engine)
+    rebuild_fts_index_if_empty(engine)
+
+    # 3. Ensure docs root exists (used by document filesystem storage)
     os.makedirs(DOCS_ROOT, exist_ok=True)
 
-    # 3. Create services (for FileWatcher only; MCP tools create their own sessions)
-    db_session = SessionLocal()
-    container = ServiceContainer(db_session=db_session, docs_root=DOCS_ROOT)
-
-    # 4. Start FileWatcherService in background thread
-    watcher = FileWatcherService(
-        docs_root=DOCS_ROOT,
-        document_service=container.document_service,
-        default_space_id=DEFAULT_SPACE_ID,
-    )
-    watcher.start()
-
-    # 5. Graceful shutdown on SIGINT/SIGTERM
-    def _shutdown(signum, frame):
-        print("\nShutting down...")
-        watcher.stop()
-        db_session.close()
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, _shutdown)
-    signal.signal(signal.SIGTERM, _shutdown)
-
-    # 6. Start MCP server
+    # 4. Start MCP server
     # Use stdio transport when MCP_TRANSPORT=stdio (e.g. Glama introspection)
     # Otherwise use streamable-HTTP for multi-agent use
     transport = os.environ.get("MCP_TRANSPORT", "streamable-http")
@@ -72,6 +48,7 @@ def main() -> None:
         mcp.run(transport="stdio")
     else:
         print(f"Doc Exchange Center running at http://{HOST}:{PORT}/mcp")
+        print(f"Web Dashboard at http://{HOST}:{PORT}/")
         mcp.run(transport="streamable-http")
 
 

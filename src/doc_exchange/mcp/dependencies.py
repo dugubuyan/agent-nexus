@@ -11,6 +11,8 @@ import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
+from doc_exchange.planner.llm_client import make_llm_client
+from doc_exchange.planner.planner_service import PlannerService
 from doc_exchange.services.audit_log_service import AuditLogService
 from doc_exchange.services.document_service import DocumentService
 from doc_exchange.services.notification_service import NotificationService
@@ -56,4 +58,10 @@ class ServiceContainer:
             subscription_service=self.subscription_service,
             notification_service=self.notification_service,
             task_service=self.task_service,
+        )
+        llm_client = make_llm_client()
+        self.planner_service = PlannerService(
+            container=self,
+            llm_client=llm_client,
+            require_review=True,
         )

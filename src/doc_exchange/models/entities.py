@@ -85,7 +85,7 @@ class DocumentVersion(Base):
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False)  # incremental version number
     content_hash: Mapped[str] = mapped_column(String, nullable=False)  # SHA-256 for dedup
-    pushed_by: Mapped[str] = mapped_column(String, nullable=False)  # project_id or "system_llm"
+    pushed_by: Mapped[str] = mapped_column(String, nullable=False)  # project_id or "agent:*"
     status: Mapped[str] = mapped_column(String, nullable=False, default="published")  # draft | published
     is_milestone: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     milestone_stage: Mapped[Optional[str]] = mapped_column(String, nullable=True)

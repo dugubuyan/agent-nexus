@@ -18,7 +18,6 @@ from doc_exchange.services.audit_log_service import AuditLogService
 from doc_exchange.services.errors import DocExchangeError
 from doc_exchange.services.schemas import (
     DocumentResult,
-    PatchRequest,
     PushRequest,
     PushResult,
     VersionMeta,
@@ -189,7 +188,7 @@ class DocumentService:
 
         # 5. Determine status
         now = datetime.now(timezone.utc)
-        if req.pushed_by == "system_llm":
+        if req.pushed_by.startswith("agent:"):
             status = "draft"
             published_at = None
         else:
@@ -280,6 +279,18 @@ class DocumentService:
             project_space_id=req.project_space_id,
         )
 
+        # 9b. Update FTS index for published versions (Req 1.2)
+        if status == "published":
+            from doc_exchange.search.fts import upsert_doc
+            upsert_doc(
+                db=self._db,
+                doc_id=req.doc_id,
+                project_space_id=req.project_space_id,
+                subproject_id=subproject_id,
+                doc_type=doc_type,
+                content=req.content,
+            )
+
         # 10. Trigger notification + task pipeline for published versions (Req 5.1, 7.1, 11.2, 11.3)
         if (
             status == "published"
@@ -291,100 +302,6 @@ class DocumentService:
             self._run_pipeline(req.doc_id, doc_type, doc_version, req.project_space_id)
 
         return PushResult(version=new_version_num, doc_id=req.doc_id, status=status)
-
-    # ------------------------------------------------------------------
-    # patch(): apply a unified diff to the latest version
-    # ------------------------------------------------------------------
-
-    def patch(self, req: PatchRequest) -> PushResult:
-        """
-        Apply a unified diff patch to a document, producing a new version.
-
-        The patch must be generated against base_version. If base_version does
-        not match the current latest version, raises PATCH_BASE_MISMATCH so the
-        caller can fetch the latest content and regenerate the patch.
-
-        Uses Python's patch_ng (or difflib) to apply the unified diff.
-        Raises DocExchangeError on format or apply errors.
-        """
-        import difflib
-
-        subproject_id, doc_type, doc_variant = _parse_doc_id(req.doc_id)
-
-        with _push_lock:
-            # 1. Fetch base version content
-            document = (
-                self._db.query(Document)
-                .filter(
-                    Document.id == req.doc_id,
-                    Document.project_space_id == req.project_space_id,
-                )
-                .first()
-            )
-
-            if document is None:
-                raise DocExchangeError(
-                    error_code="DOC_NOT_FOUND",
-                    message=f"Document '{req.doc_id}' does not exist. Use push_document to create it first.",
-                    details={"doc_id": req.doc_id},
-                )
-
-            if document.latest_version != req.base_version:
-                raise DocExchangeError(
-                    error_code="PATCH_BASE_MISMATCH",
-                    message=(
-                        f"Patch base version {req.base_version} does not match "
-                        f"current latest version {document.latest_version}. "
-                        "Fetch the latest content with get_document and regenerate the patch."
-                    ),
-                    details={
-                        "doc_id": req.doc_id,
-                        "base_version": req.base_version,
-                        "latest_version": document.latest_version,
-                    },
-                )
-
-            base_ver_obj = (
-                self._db.query(DocumentVersion)
-                .filter(
-                    DocumentVersion.document_id == req.doc_id,
-                    DocumentVersion.project_space_id == req.project_space_id,
-                    DocumentVersion.version == req.base_version,
-                )
-                .first()
-            )
-            if base_ver_obj is None:
-                raise DocExchangeError(
-                    error_code="VERSION_NOT_FOUND",
-                    message=f"Base version {req.base_version} not found.",
-                    details={"doc_id": req.doc_id, "version": req.base_version},
-                )
-
-            base_content_rec = (
-                self._db.query(DocumentVersionContent)
-                .filter(DocumentVersionContent.version_id == base_ver_obj.id)
-                .first()
-            )
-            base_content = base_content_rec.content if base_content_rec else ""
-
-            # 2. Apply the unified diff patch
-            try:
-                new_content = _apply_unified_diff(base_content, req.patch)
-            except Exception as e:
-                raise DocExchangeError(
-                    error_code="PATCH_APPLY_FAILED",
-                    message=f"Failed to apply patch: {e}",
-                    details={"doc_id": req.doc_id, "base_version": req.base_version},
-                )
-
-            # 3. Delegate to push_locked with the patched content
-            push_req = PushRequest(
-                doc_id=req.doc_id,
-                content=new_content,
-                pushed_by=req.pushed_by,
-                project_space_id=req.project_space_id,
-            )
-            return self._push_locked(push_req, subproject_id, doc_type, doc_variant)
 
     # ------------------------------------------------------------------
     # Task 4.2: get() and list_versions()
@@ -650,6 +567,31 @@ class DocumentService:
         doc_version.published_at = now
         self._db.flush()
 
+        # Update FTS index now that the draft is published (Req 1.3)
+        content_rec = (
+            self._db.query(DocumentVersionContent)
+            .filter(DocumentVersionContent.version_id == doc_version.id)
+            .first()
+        )
+        document_for_fts = (
+            self._db.query(Document)
+            .filter(
+                Document.id == doc_id,
+                Document.project_space_id == project_space_id,
+            )
+            .first()
+        )
+        if content_rec is not None and document_for_fts is not None:
+            from doc_exchange.search.fts import upsert_doc
+            upsert_doc(
+                db=self._db,
+                doc_id=doc_id,
+                project_space_id=project_space_id,
+                subproject_id=document_for_fts.subproject_id,
+                doc_type=document_for_fts.doc_type,
+                content=content_rec.content,
+            )
+
         # Trigger notification + task pipeline (Req 11.3)
         document = (
             self._db.query(Document)
@@ -779,81 +721,3 @@ class DocumentService:
         return os.path.join(self._docs_root, project_space_id, "docs", subproject_id, filename)
 
 
-def _apply_unified_diff(base_content: str, patch_text: str) -> str:
-    """
-    Apply a unified diff patch to base_content and return the patched content.
-
-    Uses a line-by-line patch application algorithm compatible with the output
-    of Python's difflib.unified_diff.
-
-    Raises ValueError if the patch cannot be applied cleanly.
-    """
-    if not patch_text or not patch_text.strip():
-        return base_content
-
-    base_lines = base_content.splitlines(keepends=True)
-    result_lines = list(base_lines)
-
-    patch_lines = patch_text.splitlines(keepends=True)
-
-    # Parse hunks from the unified diff
-    hunks = []
-    i = 0
-    while i < len(patch_lines):
-        line = patch_lines[i]
-        if line.startswith("@@"):
-            # Parse hunk header: @@ -old_start[,old_count] +new_start[,new_count] @@
-            import re
-            m = re.match(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", line)
-            if not m:
-                i += 1
-                continue
-            old_start = int(m.group(1))
-            hunk_lines = []
-            i += 1
-            while i < len(patch_lines) and not patch_lines[i].startswith("@@") and not patch_lines[i].startswith("---") and not patch_lines[i].startswith("+++"):
-                hunk_lines.append(patch_lines[i])
-                i += 1
-            hunks.append((old_start, hunk_lines))
-        else:
-            i += 1
-
-    if not hunks:
-        return base_content
-
-    # Apply hunks in reverse order to preserve line numbers
-    for old_start, hunk_lines in reversed(hunks):
-        # old_start is 1-based
-        pos = old_start - 1  # convert to 0-based index
-
-        # Collect context + removed lines to verify, and new lines to insert
-        old_lines_expected = []
-        new_lines_to_insert = []
-
-        for hl in hunk_lines:
-            if hl.startswith("-"):
-                old_lines_expected.append(hl[1:])
-            elif hl.startswith("+"):
-                new_lines_to_insert.append(hl[1:])
-            elif hl.startswith(" ") or hl == "\n":
-                ctx = hl[1:] if hl.startswith(" ") else hl
-                old_lines_expected.append(ctx)
-                new_lines_to_insert.append(ctx)
-
-        # Verify context matches
-        actual = result_lines[pos: pos + len(old_lines_expected)]
-        # Normalize for comparison (strip trailing newline differences)
-        def _norm(lines):
-            return [l.rstrip("\n\r") for l in lines]
-
-        if _norm(actual) != _norm(old_lines_expected):
-            raise ValueError(
-                f"Patch hunk at line {old_start} does not match base content.\n"
-                f"Expected: {old_lines_expected[:3]}\n"
-                f"Got:      {actual[:3]}"
-            )
-
-        # Replace
-        result_lines[pos: pos + len(old_lines_expected)] = new_lines_to_insert
-
-    return "".join(result_lines)

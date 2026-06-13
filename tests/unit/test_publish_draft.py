@@ -51,8 +51,8 @@ def _push(svc, doc_id, content, pushed_by="agent-1", project_space_id="space-1",
 
 
 def _push_draft(svc, doc_id, content, project_space_id):
-    """Push a document as system_llm (creates a draft version)."""
-    return _push(svc, doc_id, content, pushed_by="system_llm", project_space_id=project_space_id)
+    """Push a document as agent:planner (creates a draft version)."""
+    return _push(svc, doc_id, content, pushed_by="agent:planner", project_space_id=project_space_id)
 
 
 # ---------------------------------------------------------------------------

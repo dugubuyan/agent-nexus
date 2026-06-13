@@ -4,7 +4,7 @@ Integration tests for DocumentService push pipeline.
 Verifies that after a successful push():
 - published status triggers NotificationService.generate() for subscribers
 - published status triggers TaskService.generate() for affected projects
-- draft status (system_llm) does NOT trigger notifications or tasks
+- draft status (agent:planner) does NOT trigger notifications or tasks
 - missing pipeline services still allows push() to succeed (backward compat)
 
 Requirements: 5.1, 7.1, 11.2, 11.3
@@ -156,7 +156,7 @@ def test_published_push_triggers_tasks_for_affected_projects(
 def test_draft_push_does_not_trigger_notifications(
     db_session, default_space, tmp_docs_root
 ):
-    """Requirement 11.2: draft (system_llm) push must NOT generate notifications."""
+    """Requirement 11.2: draft (agent:planner) push must NOT generate notifications."""
     space_id = default_space.id
     subscriber_id = str(uuid.uuid4())
     _make_subproject(db_session, space_id, subscriber_id, "testing")
@@ -171,9 +171,9 @@ def test_draft_push_does_not_trigger_notifications(
         target_doc_type="requirement",
     )
 
-    # Push as system_llm → draft
+    # Push as agent:planner → draft
     result = _push(
-        doc_svc, "sub1/requirement", "# Draft req", pushed_by="system_llm", project_space_id=space_id
+        doc_svc, "sub1/requirement", "# Draft req", pushed_by="agent:planner", project_space_id=space_id
     )
     assert result.status == "draft"
 
@@ -183,14 +183,14 @@ def test_draft_push_does_not_trigger_notifications(
 
 
 # ---------------------------------------------------------------------------
-# Test: draft push (system_llm) does NOT trigger tasks
+# Test: draft push (agent:planner) does NOT trigger tasks
 # ---------------------------------------------------------------------------
 
 
 def test_draft_push_does_not_trigger_tasks(
     db_session, default_space, tmp_docs_root
 ):
-    """Requirement 11.2: draft (system_llm) push must NOT generate tasks."""
+    """Requirement 11.2: draft (agent:planner) push must NOT generate tasks."""
     space_id = default_space.id
     testing_sub_id = str(uuid.uuid4())
     _make_subproject(db_session, space_id, testing_sub_id, "testing")
@@ -199,9 +199,9 @@ def test_draft_push_does_not_trigger_tasks(
         db_session, tmp_docs_root, space_id
     )
 
-    # Push as system_llm → draft
+    # Push as agent:planner → draft
     result = _push(
-        doc_svc, "sub1/requirement", "# Draft req", pushed_by="system_llm", project_space_id=space_id
+        doc_svc, "sub1/requirement", "# Draft req", pushed_by="agent:planner", project_space_id=space_id
     )
     assert result.status == "draft"
 

@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-250%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-281%20passing-brightgreen.svg)](tests/)
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20603176-blue)](https://doi.org/10.5281/zenodo.20603176)
 [![agent-nexus MCP server](https://glama.ai/mcp/servers/dugubuyan/agent-nexus/badges/score.svg)](https://glama.ai/mcp/servers/dugubuyan/agent-nexus)
 [![Available on CodeGuilds](https://img.shields.io/badge/Available_on-CodeGuilds-6366f1)](https://codeguilds.dev/packages/agent-nexus)
@@ -24,8 +24,12 @@ Each service registers as a sub-project, publishes versioned Markdown documents 
 - **Lifecycle stage tracking** — explicit `design → development → testing → deployment → upgrade` per service, with milestone snapshots on transitions
 - **Service-Driven Agent Onboarding (SDAOP)** — `generate_instruction_file` auto-generates IDE steering files (AGENTS.md, CLAUDE.md, Kiro steering, Cursor rules) for any connecting agent
 - **MCP HTTP server** — streamable-HTTP transport, multiple agents connect simultaneously
-- **FileWatcher ingestion** — auto-ingest Markdown files from `/docs/` directory as draft documents
-- **250 tests** — unit + property-based (Hypothesis)
+- **Out-of-band write endpoint** — `POST /api/documents` accepts full content via HTTP body (zero LLM token cost)
+- **FTS5 full-text search** — `search_documents` with BM25 ranking, phrase/prefix/boolean query support
+- **Planner AI layer** — `planner_chat`, `planner_plan`, `planner_overview` MCP tools + configurable LLM backend
+- **Web Dashboard** — browser-based UI to explore spaces, projects, and documents with full-text search
+- **AI Chat** — built-in chat panel powered by Planner LLM for conversational document Q&A and service planning
+- **281 tests** — unit + property-based (Hypothesis)
 
 ## Architecture
 
@@ -117,6 +121,33 @@ add_subscription(subscriber_project_id="<frontend_id>", project_space_id="<space
 get_my_updates_with_context(project_id="<frontend_id>")
 ```
 
+## Web Dashboard
+
+Once the server is running, open **http://localhost:10086/** in your browser.
+
+Features:
+- **Browse** — navigate spaces, sub-projects, and documents in a tree view
+- **Search** — full-text search across all documents in a space
+- **AI Chat** — ask questions about your project documents using natural language
+
+> **LLM configuration:** AI Chat requires `PLANNER_LLM_API_KEY` to be set. Set `PLANNER_LLM_PROVIDER` (`openai` or `anthropic`) and `PLANNER_LLM_MODEL` as needed. Leave the key unset to disable AI features while keeping all browse/search functionality.
+
+## Out-of-Band Write Endpoint
+
+For zero-token document ingestion (bypasses MCP tool-call LLM context), use the HTTP endpoint directly:
+
+```bash
+curl -X POST http://localhost:10086/api/documents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "<project_id>",
+    "doc_id": "<project_id>/requirement",
+    "content": "# Requirements\n\nContent here..."
+  }'
+```
+
+This uses the same `DocumentService.push` pipeline as `push_document` (same validation, FTS index update, notifications) but the document content never enters LLM context — making it practical for large documents.
+
 ## MCP Tools
 
 | Tool | Description |
@@ -126,7 +157,6 @@ get_my_updates_with_context(project_id="<frontend_id>")
 | `list_projects` | List all sub-projects in a space |
 | `list_documents` | List all documents in a sub-project |
 | `push_document` | Push a new document version (full content) |
-| `patch_document` | Apply a unified diff patch to a document |
 | `get_document` | Retrieve a document (latest or specific version) |
 | `get_my_updates_with_context` | Get unread notifications with diff + full content |
 | `ack_update` | Mark a notification as read |
@@ -136,6 +166,10 @@ get_my_updates_with_context(project_id="<frontend_id>")
 | `publish_draft` | Confirm a draft document |
 | `generate_instruction_file` | Generate IDE onboarding file (SDAOP) |
 | `get_project_id_by_name` | Look up project_id by name |
+| `search_documents` | Full-text search across documents in a space |
+| `planner_chat` | Conversational Q&A with LLM over project documents (streaming) |
+| `planner_plan` | Generate service-split proposal from a description |
+| `planner_overview` | Get a high-level overview of a project space |
 
 ## Configuration
 
@@ -145,7 +179,10 @@ get_my_updates_with_context(project_id="<frontend_id>")
 | `DOC_EXCHANGE_DOCS_ROOT` | `./workspace` | Workspace root (docs live under `{root}/{space_id}/docs/`) |
 | `DOC_EXCHANGE_HOST` | `0.0.0.0` | Server bind host |
 | `DOC_EXCHANGE_PORT` | `10086` | Server port |
-| `DOC_EXCHANGE_DEFAULT_SPACE_ID` | `default` | Default space for FileWatcher |
+| `DOC_EXCHANGE_DEFAULT_SPACE_ID` | `default` | Default space ID for bootstrap imports |
+| `PLANNER_LLM_PROVIDER` | `openai` | LLM provider for Planner AI (`openai` \| `anthropic`) |
+| `PLANNER_LLM_MODEL` | (provider default) | LLM model name |
+| `PLANNER_LLM_API_KEY` | (none) | API key; leave empty to disable AI features |
 
 ## Steering File Integration
 

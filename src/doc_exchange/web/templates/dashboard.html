@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgentNexus Doc House</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --nav-w: 240px;
+      --chat-w: 300px;
+      --top-h: 48px;
+      --bg: #f5f6f8;
+      --surface: #fff;
+      --border: #e0e2e7;
+      --primary: #3b6bdc;
+      --primary-hover: #2a55c0;
+      --text: #1a1c23;
+      --muted: #6b7280;
+      --code-bg: #f0f2f5;
+      --danger: #e53935;
+      --success: #43a047;
+      --diff-add: #e6ffed;
+      --diff-del: #ffeef0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Top Bar ─────────────────────────────────────────────── */
+    #topbar {
+      height: var(--top-h);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 10px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    #topbar h1 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--primary);
+      white-space: nowrap;
+      margin-right: 12px;
+    }
+
+    #search-input {
+      flex: 1;
+      max-width: 480px;
+      height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0 10px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    #search-input:focus { border-color: var(--primary); }
+
+    #search-btn {
+      height: 32px;
+      padding: 0 14px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.15s;
+    }
+    #search-btn:hover { background: var(--primary-hover); }
+
+    #search-results-wrap {
+      position: absolute;
+      top: var(--top-h);
+      left: 50%;
+      transform: translateX(-50%);
+      width: 480px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      z-index: 100;
+      max-height: 320px;
+      overflow-y: auto;
+      display: none;
+    }
+    #search-results-wrap.open { display: block; }
+
+    .search-result-item {
+      padding: 10px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+    }
+    .search-result-item:last-child { border-bottom: none; }
+    .search-result-item:hover { background: var(--bg); }
+    .search-result-item .sr-title { font-weight: 600; }
+    .search-result-item .sr-snippet { color: var(--muted); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── Main Layout ─────────────────────────────────────────── */
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Nav Tree ────────────────────────────────────────────── */
+    #nav {
+      width: var(--nav-w);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    #nav-header {
+      padding: 10px 12px 6px;
+      font-weight: 700;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #nav-tree {
+      overflow-y: auto;
+      flex: 1;
+      padding: 6px 0;
+    }
+
+    .tree-space {
+      margin-bottom: 2px;
+    }
+
+    .tree-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      user-select: none;
+      transition: background 0.1s;
+    }
+    .tree-item:hover { background: var(--bg); }
+    .tree-item.active { background: #e8eeff; color: var(--primary); }
+
+    .tree-item .arrow {
+      width: 14px;
+      text-align: center;
+      font-size: 10px;
+      color: var(--muted);
+      transition: transform 0.15s;
+      flex-shrink: 0;
+    }
+    .tree-item.open .arrow { transform: rotate(90deg); }
+
+    .tree-item .icon { font-size: 13px; flex-shrink: 0; }
+    .tree-item .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+
+    .tree-children {
+      display: none;
+      padding-left: 16px;
+    }
+    .tree-children.open { display: block; }
+
+    .tree-doc-item {
+      padding: 4px 12px 4px 8px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: background 0.1s;
+    }
+    .tree-doc-item:hover { background: var(--bg); color: var(--text); }
+    .tree-doc-item.active { background: #e8eeff; color: var(--primary); font-weight: 600; }
+
+    /* ── Content Area ────────────────────────────────────────── */
+    #content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    #doc-meta {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      min-height: 44px;
+    }
+
+    #doc-title { font-weight: 700; font-size: 14px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .doc-badge {
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .doc-badge.published { background: #e6f4ea; color: var(--success); }
+    .doc-badge.draft { background: #fff3e0; color: #e65100; }
+
+    .doc-btn {
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 12px;
+      transition: border-color 0.15s;
+    }
+    .doc-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+    #doc-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 32px;
+    }
+
+    #doc-body {
+      max-width: 800px;
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 28px 32px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    /* Markdown rendered content */
+    #doc-body h1, #doc-body h2, #doc-body h3, #doc-body h4, #doc-body h5, #doc-body h6 {
+      margin: 1.2em 0 0.5em;
+      line-height: 1.3;
+    }
+    #doc-body h1 { font-size: 1.8em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+    #doc-body h2 { font-size: 1.4em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
+    #doc-body h3 { font-size: 1.1em; }
+    #doc-body p { margin: 0.8em 0; line-height: 1.7; }
+    #doc-body ul, #doc-body ol { margin: 0.6em 0 0.6em 1.5em; }
+    #doc-body li { margin: 0.3em 0; line-height: 1.6; }
+    #doc-body code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-size: 0.9em; font-family: "SFMono-Regular", Consolas, monospace; }
+    #doc-body pre { background: var(--code-bg); border-radius: 6px; padding: 14px 16px; overflow-x: auto; margin: 1em 0; }
+    #doc-body pre code { background: none; padding: 0; }
+    #doc-body blockquote { border-left: 4px solid var(--border); color: var(--muted); margin: 0.8em 0; padding: 0.4em 1em; }
+    #doc-body table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    #doc-body th, #doc-body td { border: 1px solid var(--border); padding: 6px 12px; text-align: left; }
+    #doc-body th { background: var(--bg); font-weight: 600; }
+    #doc-body a { color: var(--primary); text-decoration: none; }
+    #doc-body a:hover { text-decoration: underline; }
+    #doc-body hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
+
+    #doc-placeholder {
+      color: var(--muted);
+      text-align: center;
+      margin-top: 80px;
+      font-size: 15px;
+    }
+    #doc-placeholder .icon-big { font-size: 48px; margin-bottom: 12px; }
+
+    /* ── AI Chat Panel ───────────────────────────────────────── */
+    #chat-panel {
+      width: var(--chat-w);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    #chat-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 700;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    #chat-context {
+      padding: 6px 12px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    #chat-context span { color: var(--primary); font-weight: 600; }
+
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .chat-msg {
+      max-width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .chat-msg.user {
+      background: var(--primary);
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 2px;
+    }
+    .chat-msg.assistant {
+      background: var(--bg);
+      color: var(--text);
+      align-self: flex-start;
+      border-bottom-left-radius: 2px;
+    }
+    .chat-msg.error-msg { background: #fdecea; color: var(--danger); }
+    .chat-msg.typing::after { content: "▋"; animation: blink 1s infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    #chat-input-area {
+      border-top: 1px solid var(--border);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    #chat-input {
+      width: 100%;
+      height: 70px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      resize: none;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    #chat-input:focus { border-color: var(--primary); }
+
+    #chat-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    #chat-send {
+      flex: 1;
+      height: 30px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.15s;
+    }
+    #chat-send:hover { background: var(--primary-hover); }
+    #chat-send:disabled { background: #b0bec5; cursor: default; }
+
+    #chat-clear {
+      height: 30px;
+      padding: 0 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--muted);
+      transition: border-color 0.15s;
+    }
+    #chat-clear:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* ── Modals ──────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.hidden { display: none; }
+
+    .modal {
+      background: var(--surface);
+      border-radius: 10px;
+      width: 680px;
+      max-width: 95vw;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-header h3 { font-size: 15px; font-weight: 700; }
+
+    .modal-close {
+      background: none; border: none; cursor: pointer;
+      font-size: 18px; color: var(--muted);
+    }
+    .modal-close:hover { color: var(--text); }
+
+    .modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+    }
+
+    /* Version list */
+    .version-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .version-item:last-child { border-bottom: none; }
+
+    .ver-num { font-weight: 700; width: 32px; flex-shrink: 0; }
+    .ver-by { color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ver-status { }
+    .ver-select-btn {
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 11px;
+    }
+    .ver-select-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .ver-select-btn.selected { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    /* Diff view */
+    #diff-container pre {
+      font-size: 12px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .diff-line { display: block; }
+    .diff-line.add { background: var(--diff-add); }
+    .diff-line.del { background: var(--diff-del); }
+    .diff-line.hunk { background: #f0f4ff; color: var(--muted); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd0d8; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #9ba3af; }
+
+    /* Loading spinner */
+    .loading { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- ── Top Search Bar ───────────────────────────────────────── -->
+<div id="topbar">
+  <h1>🏠 Doc House</h1>
+  <input id="search-input" type="text" placeholder="Search in current space…" autocomplete="off" />
+  <button id="search-btn">Search</button>
+</div>
+
+<!-- Search results dropdown (absolute positioned) -->
+<div id="search-results-wrap"></div>
+
+<!-- ── Main 3-column layout ─────────────────────────────────── -->
+<div id="main">
+
+  <!-- Left: Nav Tree -->
+  <nav id="nav">
+    <div id="nav-header">Spaces & Docs</div>
+    <div id="nav-tree">
+      <div style="padding:16px 12px; color:var(--muted); font-size:12px;">
+        <span class="loading"></span>&nbsp; Loading spaces…
+      </div>
+    </div>
+  </nav>
+
+  <!-- Middle: Document Content -->
+  <section id="content">
+    <div id="doc-meta" style="display:none;">
+      <span id="doc-title"></span>
+      <span id="doc-version-badge" class="doc-badge"></span>
+      <span id="doc-status-badge" class="doc-badge"></span>
+      <span id="doc-author" style="font-size:12px; color:var(--muted);"></span>
+      <button class="doc-btn" id="btn-history">History</button>
+      <button class="doc-btn" id="btn-compare">Compare</button>
+    </div>
+    <div id="doc-scroll">
+      <div id="doc-placeholder">
+        <div class="icon-big">📄</div>
+        <div>Select a document from the navigation tree</div>
+      </div>
+      <div id="doc-body" style="display:none;"></div>
+    </div>
+  </section>
+
+  <!-- Right: AI Chat Panel -->
+  <aside id="chat-panel">
+    <div id="chat-header">🤖 AI Chat</div>
+    <div id="chat-context">Context: <span id="chat-space-label">no space selected</span></div>
+    <div id="chat-messages">
+      <div class="chat-msg assistant">Hi! Select a space and ask me anything about your documents.</div>
+    </div>
+    <div id="chat-input-area">
+      <textarea id="chat-input" placeholder="Ask a question…"></textarea>
+      <div id="chat-actions">
+        <button id="chat-send">Send</button>
+        <button id="chat-clear">Clear</button>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<!-- ── Version History Modal ─────────────────────────────────── -->
+<div class="modal-overlay hidden" id="versions-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Version History</h3>
+      <button class="modal-close" data-close="versions-modal">✕</button>
+    </div>
+    <div class="modal-body" id="versions-list"></div>
+  </div>
+</div>
+
+<!-- ── Compare / Diff Modal ──────────────────────────────────── -->
+<div class="modal-overlay hidden" id="diff-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Compare Versions</h3>
+      <button class="modal-close" data-close="diff-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="diff-controls" style="display:flex; gap:10px; margin-bottom:14px; align-items:center; font-size:13px;">
+        <label>From: <input id="diff-from" type="number" min="1" style="width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px;"></label>
+        <label>To: <input id="diff-to" type="number" min="1" style="width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px;"></label>
+        <button id="diff-run-btn" style="padding:5px 14px; background:var(--primary); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px;">Compare</button>
+      </div>
+      <div id="diff-container"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   AgentNexus Doc House — Dashboard Frontend
+   Single <script> block, no modules, no bundler.
+================================================================= */
+
+'use strict';
+
+// ── State ────────────────────────────────────────────────────────
+const state = {
+  currentSpaceId: null,
+  currentDocId: null,
+  currentDocVersions: [],
+  chatStreaming: false,
+};
+
+// ── Utility ──────────────────────────────────────────────────────
+function qs(sel, root = document) { return root.querySelector(sel); }
+function qsa(sel, root = document) { return Array.from(root.querySelectorAll(sel)); }
+
+function el(tag, props = {}, children = []) {
+  const e = document.createElement(tag);
+  Object.entries(props).forEach(([k, v]) => {
+    if (k === 'className') e.className = v;
+    else if (k === 'textContent') e.textContent = v;
+    else if (k === 'innerHTML') e.innerHTML = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  });
+  children.forEach(c => e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
+  return e;
+}
+
+async function apiFetch(url) {
+  const resp = await fetch(url);
+  const json = await resp.json();
+  if (!resp.ok || json.error) throw new Error(json.message || `HTTP ${resp.status}`);
+  return json;
+}
+
+function showModal(id) { qs('#' + id).classList.remove('hidden'); }
+function hideModal(id) { qs('#' + id).classList.add('hidden'); }
+
+// Close modals via data-close buttons
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-close]');
+  if (btn) hideModal(btn.dataset.close);
+});
+// Click outside modal to close
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-overlay') && !e.target.classList.contains('hidden')) {
+    e.target.classList.add('hidden');
+  }
+});
+
+// ── Nav Tree ─────────────────────────────────────────────────────
+async function loadSpaces() {
+  const tree = qs('#nav-tree');
+  try {
+    const spaces = await apiFetch('/api/spaces');
+    tree.innerHTML = '';
+    if (!spaces || spaces.length === 0) {
+      tree.innerHTML = '<div style="padding:16px 12px; color:var(--muted); font-size:12px;">No spaces found.</div>';
+      return;
+    }
+    spaces.forEach(space => {
+      const wrap = el('div', { className: 'tree-space' });
+      const item = el('div', { className: 'tree-item' });
+      const arrow = el('span', { className: 'arrow', textContent: '▶' });
+      const icon = el('span', { className: 'icon', textContent: '🗂' });
+      const label = el('span', { className: 'label', textContent: space.name || space.space_id });
+      item.append(arrow, icon, label);
+
+      const children = el('div', { className: 'tree-children' });
+
+      item.addEventListener('click', () => {
+        const isOpen = item.classList.contains('open');
+        if (isOpen) {
+          item.classList.remove('open');
+          children.classList.remove('open');
+        } else {
+          item.classList.add('open');
+          children.classList.add('open');
+          selectSpace(space.space_id, space.name || space.space_id, children, item);
+        }
+      });
+
+      wrap.append(item, children);
+      tree.appendChild(wrap);
+    });
+  } catch (err) {
+    tree.innerHTML = `<div style="padding:16px 12px; color:var(--danger); font-size:12px;">Failed to load spaces: ${err.message}</div>`;
+  }
+}
+
+function selectSpace(spaceId, spaceName, childrenEl, itemEl) {
+  state.currentSpaceId = spaceId;
+  qs('#chat-space-label').textContent = spaceName;
+
+  if (childrenEl.children.length > 0) return; // already loaded
+
+  childrenEl.innerHTML = '<div style="padding:6px 12px; color:var(--muted); font-size:12px;"><span class="loading"></span>&nbsp;Loading…</div>';
+
+  apiFetch(`/api/spaces/${encodeURIComponent(spaceId)}/projects`)
+    .then(projects => {
+      childrenEl.innerHTML = '';
+      if (!projects || projects.length === 0) {
+        childrenEl.innerHTML = '<div style="padding:6px 12px; color:var(--muted); font-size:12px;">No projects.</div>';
+        return;
+      }
+      projects.forEach(proj => renderProject(proj, childrenEl));
+    })
+    .catch(err => {
+      childrenEl.innerHTML = `<div style="padding:6px 12px; color:var(--danger); font-size:12px;">${err.message}</div>`;
+    });
+}
+
+function renderProject(proj, parentEl) {
+  const wrap = el('div', {});
+  const item = el('div', { className: 'tree-item' });
+  const arrow = el('span', { className: 'arrow', textContent: '▶' });
+  const icon = el('span', { className: 'icon', textContent: '📁' });
+  const label = el('span', { className: 'label', textContent: proj.name || proj.project_id });
+  item.append(arrow, icon, label);
+  item.style.paddingLeft = '20px';
+
+  const children = el('div', { className: 'tree-children' });
+
+  item.addEventListener('click', () => {
+    const isOpen = item.classList.contains('open');
+    if (isOpen) {
+      item.classList.remove('open');
+      children.classList.remove('open');
+    } else {
+      item.classList.add('open');
+      children.classList.add('open');
+      loadDocuments(proj.project_id, children);
+    }
+  });
+
+  wrap.append(item, children);
+  parentEl.appendChild(wrap);
+}
+
+function loadDocuments(projectId, childrenEl) {
+  if (childrenEl.children.length > 0) return;
+
+  childrenEl.innerHTML = '<div style="padding:6px 12px; color:var(--muted); font-size:12px;"><span class="loading"></span>&nbsp;Loading…</div>';
+
+  apiFetch(`/api/projects/${encodeURIComponent(projectId)}/documents`)
+    .then(docs => {
+      childrenEl.innerHTML = '';
+      if (!docs || docs.length === 0) {
+        childrenEl.innerHTML = '<div style="padding:6px 12px; color:var(--muted); font-size:12px;">No documents.</div>';
+        return;
+      }
+      docs.forEach(doc => {
+        const docEl = el('div', { className: 'tree-doc-item', textContent: doc.doc_id || doc });
+        docEl.addEventListener('click', e => {
+          e.stopPropagation();
+          // deactivate all docs
+          qsa('.tree-doc-item.active').forEach(d => d.classList.remove('active'));
+          docEl.classList.add('active');
+          const docId = doc.doc_id || doc;
+          loadDocument(docId);
+        });
+        childrenEl.appendChild(docEl);
+      });
+    })
+    .catch(err => {
+      childrenEl.innerHTML = `<div style="padding:6px 12px; color:var(--danger); font-size:12px;">${err.message}</div>`;
+    });
+}
+
+// ── Document Content ──────────────────────────────────────────────
+async function loadDocument(docId) {
+  if (!state.currentSpaceId) {
+    alert('Please select a space first.');
+    return;
+  }
+
+  state.currentDocId = docId;
+  state.currentDocVersions = [];
+
+  const placeholder = qs('#doc-placeholder');
+  const body = qs('#doc-body');
+  const meta = qs('#doc-meta');
+
+  placeholder.style.display = 'none';
+  body.style.display = 'none';
+  body.innerHTML = '<div style="padding:20px; color:var(--muted);"><span class="loading"></span>&nbsp; Loading document…</div>';
+  body.style.display = 'block';
+  meta.style.display = 'none';
+
+  try {
+    const url = `/api/documents/${encodeURIComponent(docId)}?space_id=${encodeURIComponent(state.currentSpaceId)}`;
+    const result = await apiFetch(url);
+
+    // Update meta bar
+    qs('#doc-title').textContent = docId;
+
+    const verBadge = qs('#doc-version-badge');
+    const version = result.version ?? result.meta?.version ?? '';
+    verBadge.textContent = version ? `v${version}` : '';
+    verBadge.className = 'doc-badge';
+
+    const statusBadge = qs('#doc-status-badge');
+    const status = result.status ?? result.meta?.status ?? '';
+    statusBadge.textContent = status;
+    statusBadge.className = `doc-badge ${status === 'published' ? 'published' : 'draft'}`;
+
+    const pushedBy = result.pushed_by ?? result.meta?.pushed_by ?? '';
+    qs('#doc-author').textContent = pushedBy ? `by: ${pushedBy}` : '';
+
+    meta.style.display = 'flex';
+
+    // Render markdown
+    const content = result.content ?? '';
+    const rendered = typeof marked !== 'undefined' ? marked.parse(content) : `<pre>${escapeHtml(content)}</pre>`;
+    body.innerHTML = rendered;
+
+  } catch (err) {
+    body.innerHTML = `<div style="color:var(--danger); padding:20px;">Failed to load document: ${err.message}</div>`;
+    meta.style.display = 'none';
+    placeholder.style.display = 'none';
+  }
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ── Version History ───────────────────────────────────────────────
+qs('#btn-history').addEventListener('click', async () => {
+  if (!state.currentDocId || !state.currentSpaceId) return;
+
+  const listEl = qs('#versions-list');
+  listEl.innerHTML = '<div style="color:var(--muted); font-size:13px;"><span class="loading"></span>&nbsp; Loading versions…</div>';
+  showModal('versions-modal');
+
+  try {
+    const url = `/api/documents/${encodeURIComponent(state.currentDocId)}/versions?space_id=${encodeURIComponent(state.currentSpaceId)}`;
+    const versions = await apiFetch(url);
+    state.currentDocVersions = versions;
+
+    listEl.innerHTML = '';
+    if (!versions || versions.length === 0) {
+      listEl.innerHTML = '<div style="color:var(--muted); font-size:13px;">No versions found.</div>';
+      return;
+    }
+
+    versions.forEach(v => {
+      const row = el('div', { className: 'version-item' });
+      const num = el('span', { className: 'ver-num', textContent: `v${v.version}` });
+      const by = el('span', { className: 'ver-by', textContent: v.pushed_by || '—' });
+      const st = el('span', { className: `doc-badge ${v.status === 'published' ? 'published' : 'draft'}`, textContent: v.status || '' });
+      const loadBtn = el('button', { className: 'ver-select-btn', textContent: 'Load' });
+      loadBtn.addEventListener('click', () => {
+        hideModal('versions-modal');
+        loadDocumentVersion(state.currentDocId, v.version);
+      });
+      row.append(num, by, st, loadBtn);
+      listEl.appendChild(row);
+    });
+  } catch (err) {
+    listEl.innerHTML = `<div style="color:var(--danger); font-size:13px;">${err.message}</div>`;
+  }
+});
+
+async function loadDocumentVersion(docId, version) {
+  if (!state.currentSpaceId) return;
+  const body = qs('#doc-body');
+  body.innerHTML = '<div style="padding:20px; color:var(--muted);"><span class="loading"></span>&nbsp; Loading…</div>';
+
+  try {
+    const url = `/api/documents/${encodeURIComponent(docId)}?space_id=${encodeURIComponent(state.currentSpaceId)}&version=${version}`;
+    const result = await apiFetch(url);
+
+    const verBadge = qs('#doc-version-badge');
+    verBadge.textContent = `v${version}`;
+
+    const content = result.content ?? '';
+    const rendered = typeof marked !== 'undefined' ? marked.parse(content) : `<pre>${escapeHtml(content)}</pre>`;
+    body.innerHTML = rendered;
+  } catch (err) {
+    body.innerHTML = `<div style="color:var(--danger); padding:20px;">${err.message}</div>`;
+  }
+}
+
+// ── Compare / Diff ────────────────────────────────────────────────
+qs('#btn-compare').addEventListener('click', () => {
+  if (!state.currentDocId) return;
+  qs('#diff-container').innerHTML = '';
+  qs('#diff-from').value = '';
+  qs('#diff-to').value = '';
+  showModal('diff-modal');
+});
+
+qs('#diff-run-btn').addEventListener('click', async () => {
+  const from = parseInt(qs('#diff-from').value, 10);
+  const to = parseInt(qs('#diff-to').value, 10);
+  if (!from || !to || isNaN(from) || isNaN(to)) {
+    alert('Please enter both "from" and "to" version numbers.');
+    return;
+  }
+
+  const container = qs('#diff-container');
+  container.innerHTML = '<div style="color:var(--muted); font-size:13px;"><span class="loading"></span>&nbsp; Computing diff…</div>';
+
+  try {
+    const url = `/api/documents/${encodeURIComponent(state.currentDocId)}/diff?space_id=${encodeURIComponent(state.currentSpaceId)}&from=${from}&to=${to}`;
+    const result = await apiFetch(url);
+    renderDiff(container, result.diff || '');
+  } catch (err) {
+    container.innerHTML = `<div style="color:var(--danger); font-size:13px;">${err.message}</div>`;
+  }
+});
+
+function renderDiff(container, diffText) {
+  if (!diffText) {
+    container.innerHTML = '<div style="color:var(--muted); font-size:13px;">No differences.</div>';
+    return;
+  }
+  const pre = el('pre', {});
+  diffText.split('\n').forEach(line => {
+    const span = el('span', { className: 'diff-line' });
+    if (line.startsWith('+')) span.classList.add('add');
+    else if (line.startsWith('-')) span.classList.add('del');
+    else if (line.startsWith('@@')) span.classList.add('hunk');
+    span.textContent = line + '\n';
+    pre.appendChild(span);
+  });
+  container.innerHTML = '';
+  container.appendChild(pre);
+}
+
+// ── Search ────────────────────────────────────────────────────────
+const searchInput = qs('#search-input');
+const searchBtn = qs('#search-btn');
+const searchResultsWrap = qs('#search-results-wrap');
+
+let searchDebounceTimer = null;
+
+function doSearch() {
+  const q = searchInput.value.trim();
+  if (!q) {
+    searchResultsWrap.innerHTML = '';
+    searchResultsWrap.classList.remove('open');
+    return;
+  }
+  if (!state.currentSpaceId) {
+    searchResultsWrap.innerHTML = '<div class="search-result-item" style="color:var(--muted);">Select a space first to search.</div>';
+    searchResultsWrap.classList.add('open');
+    return;
+  }
+
+  apiFetch(`/api/spaces/${encodeURIComponent(state.currentSpaceId)}/search?q=${encodeURIComponent(q)}`)
+    .then(results => {
+      searchResultsWrap.innerHTML = '';
+      if (!results || results.length === 0) {
+        searchResultsWrap.innerHTML = '<div class="search-result-item" style="color:var(--muted);">No results found.</div>';
+      } else {
+        results.forEach(r => {
+          const item = el('div', { className: 'search-result-item' });
+          const title = el('div', { className: 'sr-title', textContent: r.doc_id || r.id || '' });
+          const snippet = el('div', { className: 'sr-snippet', textContent: r.snippet || r.content || '' });
+          item.append(title, snippet);
+          item.addEventListener('click', () => {
+            searchResultsWrap.classList.remove('open');
+            searchInput.value = '';
+            if (r.doc_id || r.id) loadDocument(r.doc_id || r.id);
+          });
+          searchResultsWrap.appendChild(item);
+        });
+      }
+      searchResultsWrap.classList.add('open');
+    })
+    .catch(err => {
+      searchResultsWrap.innerHTML = `<div class="search-result-item" style="color:var(--danger);">${err.message}</div>`;
+      searchResultsWrap.classList.add('open');
+    });
+}
+
+searchBtn.addEventListener('click', doSearch);
+searchInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+  if (e.key === 'Escape') { searchResultsWrap.classList.remove('open'); }
+});
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(doSearch, 300);
+});
+
+// Close search on outside click
+document.addEventListener('click', e => {
+  if (!searchResultsWrap.contains(e.target) && e.target !== searchInput && e.target !== searchBtn) {
+    searchResultsWrap.classList.remove('open');
+  }
+});
+
+// ── AI Chat ───────────────────────────────────────────────────────
+const chatMessages = qs('#chat-messages');
+const chatInput = qs('#chat-input');
+const chatSend = qs('#chat-send');
+const chatClear = qs('#chat-clear');
+
+function addChatMessage(role, text) {
+  const msg = el('div', { className: `chat-msg ${role}`, textContent: text });
+  chatMessages.appendChild(msg);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return msg;
+}
+
+function appendToMessage(msgEl, text) {
+  msgEl.textContent += text;
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+async function sendChat() {
+  const q = chatInput.value.trim();
+  if (!q || state.chatStreaming) return;
+  if (!state.currentSpaceId) {
+    addChatMessage('assistant error-msg', 'Please select a space first.');
+    return;
+  }
+
+  chatInput.value = '';
+  chatSend.disabled = true;
+  state.chatStreaming = true;
+
+  addChatMessage('user', q);
+  const assistantMsg = addChatMessage('assistant typing', '');
+
+  try {
+    const resp = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        space_id: state.currentSpaceId,
+        question: q,
+        doc_ids: state.currentDocId ? [state.currentDocId] : null,
+      }),
+    });
+
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      assistantMsg.classList.remove('typing');
+      assistantMsg.textContent = errData.message || `Error: HTTP ${resp.status}`;
+      assistantMsg.classList.add('error-msg');
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let done = false;
+
+    while (!done) {
+      const { value, done: streamDone } = await reader.read();
+      done = streamDone;
+      if (value) buffer += decoder.decode(value, { stream: true });
+
+      // Parse SSE lines
+      let lineEnd;
+      while ((lineEnd = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, lineEnd).trimEnd();
+        buffer = buffer.slice(lineEnd + 1);
+
+        if (line.startsWith('event: error')) {
+          // next data line will have error info
+        } else if (line.startsWith('event: done')) {
+          done = true;
+          break;
+        } else if (line.startsWith('data: ')) {
+          const raw = line.slice('data: '.length).trim();
+          if (!raw || raw === '{}') continue;
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed.token) appendToMessage(assistantMsg, parsed.token);
+            if (parsed.error) {
+              assistantMsg.textContent = parsed.message || parsed.error || 'Unknown error';
+              assistantMsg.classList.add('error-msg');
+              done = true;
+              break;
+            }
+          } catch (e) {
+            // not JSON, append raw text
+            appendToMessage(assistantMsg, raw);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    assistantMsg.textContent = `Network error: ${err.message}`;
+    assistantMsg.classList.add('error-msg');
+  } finally {
+    assistantMsg.classList.remove('typing');
+    chatSend.disabled = false;
+    state.chatStreaming = false;
+  }
+}
+
+chatSend.addEventListener('click', sendChat);
+chatInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+});
+chatClear.addEventListener('click', () => {
+  chatMessages.innerHTML = '<div class="chat-msg assistant">Hi! Select a space and ask me anything about your documents.</div>';
+});
+
+// ── Init ──────────────────────────────────────────────────────────
+loadSpaces();
+</script>
+</body>
+</html>

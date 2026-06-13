@@ -7,7 +7,7 @@ Covers:
 - push() with same content returns CONTENT_UNCHANGED
 - push() with invalid doc_id returns INVALID_DOC_ID
 - push() config type without stage returns INVALID_STAGE
-- push() with system_llm sets status=draft
+- push() with agent:planner sets status=draft
 - push() with external agent sets status=published
 - push() writes file to correct path
 - get() returns latest version content
@@ -159,7 +159,7 @@ def test_push_config_with_stage_in_doc_id_succeeds(db_session, default_space, tm
 
 def test_push_system_llm_sets_status_draft(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    result = _push(svc, "sub1/design", "# Draft", pushed_by="system_llm", project_space_id=default_space.id)
+    result = _push(svc, "sub1/design", "# Draft", pushed_by="agent:planner", project_space_id=default_space.id)
     assert result.status == "draft"
 
 
@@ -287,11 +287,11 @@ def test_list_versions_nonexistent_doc_returns_doc_not_found(db_session, default
 
 def test_list_versions_contains_pushed_by_and_status(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    _push(svc, "sub1/api", "# v1", pushed_by="system_llm", project_space_id=default_space.id)
+    _push(svc, "sub1/api", "# v1", pushed_by="agent:planner", project_space_id=default_space.id)
     _push(svc, "sub1/api", "# v2", pushed_by="agent-1", project_space_id=default_space.id)
 
     versions = svc.list_versions("sub1/api", default_space.id)
-    assert versions[0].pushed_by == "system_llm"
+    assert versions[0].pushed_by == "agent:planner"
     assert versions[0].status == "draft"
     assert versions[1].pushed_by == "agent-1"
     assert versions[1].status == "published"
@@ -370,6 +370,11 @@ def test_concurrent_pushes_produce_unique_monotonic_versions(engine, tmp_docs_ro
             cursor.close()
 
         Base.metadata.create_all(conc_engine)
+
+        # Create FTS5 table in the temporary test database
+        from doc_exchange.search.fts import ensure_fts_table as _ensure_fts
+        _ensure_fts(conc_engine)
+
         SessionFactory = sessionmaker(bind=conc_engine)
 
         # Create a shared space
@@ -491,6 +496,11 @@ def test_concurrent_pushes_to_different_docs_do_not_interfere(tmp_docs_root):
             cursor.close()
 
         Base.metadata.create_all(conc_engine)
+
+        # Create FTS5 table in the temporary test database
+        from doc_exchange.search.fts import ensure_fts_table as _ensure_fts2
+        _ensure_fts2(conc_engine)
+
         SessionFactory = sessionmaker(bind=conc_engine)
 
         space_id = str(uuid.uuid4())

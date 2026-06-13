@@ -10,17 +10,9 @@ from pydantic import BaseModel
 class PushRequest(BaseModel):
     doc_id: str
     content: str
-    pushed_by: str          # project_id or "system_llm"
+    pushed_by: str          # project_id or "agent:*" (agent:planner for Planner drafts)
     project_space_id: str
     metadata: dict = {}     # for config type, must contain "stage"
-
-
-class PatchRequest(BaseModel):
-    doc_id: str
-    base_version: int       # version the patch was generated against
-    patch: str              # unified diff string
-    pushed_by: str          # project_id
-    project_space_id: str
 
 
 class PushResult(BaseModel):

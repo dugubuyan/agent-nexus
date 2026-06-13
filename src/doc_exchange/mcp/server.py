@@ -62,44 +62,6 @@ async def push_document(
 
 
 @mcp.tool()
-async def patch_document(
-    project_id: str,
-    doc_id: str,
-    base_version: int,
-    patch: str,
-) -> dict:
-    """
-    Apply a unified diff patch to an existing document, producing a new version.
-
-    Use instead of push_document when only part of the document changed.
-    Suitable for large documents where push_document would exceed payload limits.
-
-    IMPORTANT: The patch MUST be generated programmatically (e.g., via difflib.unified_diff
-    on the actual file content), NOT hand-written. Hand-written diffs are prone to
-    line-number errors and will fail with PATCH_APPLY_FAILED.
-
-    Recommended workflow:
-      1. Read the current document with get_document to get the exact stored content.
-      2. Write the modified content to a local file.
-      3. Use a code tool to compute difflib.unified_diff between the two versions.
-      4. Pass the resulting diff string as the patch parameter.
-
-    base_version must match the current latest version; if not, returns
-    PATCH_BASE_MISMATCH — call get_document to fetch latest and regenerate the patch.
-    """
-    handler, session = _get_handler()
-    try:
-        result = await handler.patch_document(project_id, doc_id, base_version, patch)
-        session.commit()
-        return result
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
-
-@mcp.tool()
 async def get_document(
     project_id: str,
     doc_id: str,
@@ -374,3 +336,128 @@ async def list_documents(project_id: str) -> list[dict]:
         return await handler.list_documents(project_id)
     finally:
         session.close()
+
+
+@mcp.tool()
+async def search_documents(
+    project_space_id: str,
+    query: str,
+    doc_type: str | None = None,
+    subproject_id: str | None = None,
+    limit: int = 10,
+) -> list[dict]:
+    """
+    Full-text search across all published documents in a project space.
+
+    Supports FTS5 query syntax:
+    - Keywords:  authentication
+    - Phrases:   "user authentication"
+    - Prefix:    auth*
+    - Boolean:   authentication NOT oauth
+
+    Results are ranked by BM25 relevance (most relevant first).
+    Each result includes a snippet with matched terms highlighted using >>> / <<<.
+
+    Optional filters:
+    - doc_type: limit to a specific document type (requirement, design, api, etc.)
+    - subproject_id: limit to a specific sub-project
+
+    Returns [] when no matches are found.
+    Returns {"error": "INVALID_QUERY", ...} on FTS5 syntax errors.
+    """
+    handler, session = _get_handler()
+    try:
+        return await handler.search_documents(
+            project_space_id, query, doc_type, subproject_id, limit
+        )
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+# Planner tools (read-only AI inference + cross-project overview)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def planner_chat(
+    space_id: str,
+    question: str,
+    doc_ids: list[str] | None = None,
+) -> dict:
+    """
+    Ask the Planner a question with cross-service document context. Read-only.
+
+    Returns {answer: str} on success, or {error: ...} when the LLM is not
+    configured or a document/space error occurs.
+
+    If doc_ids is specified, only those documents are loaded as context.
+    Otherwise the Planner retrieves relevant documents via full-text search
+    (supports FTS5 query syntax) across the entire space.
+
+    Requirements 2.1, 4.1
+    """
+    handler, session = _get_handler()
+    try:
+        return await handler.planner_chat(space_id, question, doc_ids)
+    finally:
+        session.close()
+
+
+@mcp.tool()
+async def planner_plan(space_id: str, description: str) -> dict:
+    """
+    Propose a service decomposition (SubProjects + dependencies + initial document recommendations).
+
+    Returns proposal only, does NOT persist to database.
+    Human confirmation required before creating any SubProjects.
+
+    The returned dict contains a list of suggested SubProjects with their
+    types, dependencies, and recommended initial documents. Use the existing
+    register_project and push_document tools to act on the proposal.
+
+    Requirements 2.2, 4.1
+    """
+    handler, session = _get_handler()
+    try:
+        return await handler.planner_plan(space_id, description)
+    finally:
+        session.close()
+
+
+@mcp.tool()
+async def planner_overview(space_id: str) -> dict:
+    """
+    Cross-subproject document overview for a space. Returns all sub-projects and their documents.
+
+    Read-only global view. Returns:
+      {
+        "space_id": str,
+        "projects": [
+          {
+            "project_id": str,
+            "name": str,
+            "type": str,
+            "stage": str,
+            "documents": [...]
+          },
+          ...
+        ]
+      }
+
+    Requirements 4.1
+    """
+    handler, session = _get_handler()
+    try:
+        return await handler.planner_overview(space_id)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+# Web Dashboard routes
+# ---------------------------------------------------------------------------
+
+from doc_exchange.web.routes import register_web_routes  # noqa: E402
+
+register_web_routes(mcp, get_handler=_get_handler)

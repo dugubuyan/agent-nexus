@@ -110,7 +110,7 @@ def _add_document_draft_only(
         project_space_id=space_id,
         version=1,
         content_hash="draft_hash",
-        pushed_by="system_llm",
+        pushed_by="agent:planner",
         status="draft",
         is_milestone=False,
         milestone_stage=None,

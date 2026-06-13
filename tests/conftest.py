@@ -39,6 +39,11 @@ def engine():
         cursor.close()
 
     Base.metadata.create_all(eng)
+
+    # Create FTS5 virtual table (not managed by SQLAlchemy ORM)
+    from doc_exchange.search.fts import ensure_fts_table
+    ensure_fts_table(eng)
+
     yield eng
     eng.dispose()
 
