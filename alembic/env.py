@@ -9,7 +9,7 @@ from alembic import context
 # Add src to path so we can import our models
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from doc_exchange.models import Base  # noqa: E402
+from agent_nexus.models import Base  # noqa: E402
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -1,4 +1,4 @@
-# Feature: doc-exchange-center, Property 1: 子项目注册 Round-Trip
+# Feature: agent-nexus, Property 1: 子项目注册 Round-Trip
 """
 Property-based tests for sub-project registration.
 
@@ -14,8 +14,8 @@ from hypothesis import strategies as st
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
-from doc_exchange.models import Base, ProjectSpace
-from doc_exchange.services.project_service import ProjectService
+from agent_nexus.models import Base, ProjectSpace
+from agent_nexus.services.project_service import ProjectService
 
 
 # ---------------------------------------------------------------------------
@@ -191,7 +191,7 @@ def test_prop_multiple_registrations_unique_ids(entries):
 # Property 2: 阶段变更更新属性
 # ---------------------------------------------------------------------------
 
-# Feature: doc-exchange-center, Property 2: 阶段变更更新属性
+# Feature: agent-nexus, Property 2: 阶段变更更新属性
 
 valid_stage = st.sampled_from(["design", "development", "testing", "deployment", "upgrade"])
 
@@ -264,9 +264,9 @@ def test_prop_stage_change_updates_stage(target_stage: str):
 # Property 3: 注册缺失字段返回错误
 # ---------------------------------------------------------------------------
 
-# Feature: doc-exchange-center, Property 3: 注册缺失字段返回错误
+# Feature: agent-nexus, Property 3: 注册缺失字段返回错误
 
-from doc_exchange.services.errors import DocExchangeError
+from agent_nexus.services.errors import AgentNexusError
 
 # Strategy: generate a request missing name, type, or both
 # We represent the request as (name_or_none, type_or_none)
@@ -291,7 +291,7 @@ def test_prop_register_missing_fields_returns_error(request):
     Property 3: 注册缺失字段返回错误
 
     For any registration request missing name or type (or both), the service
-    must raise DocExchangeError with error_code MISSING_REQUIRED_FIELD, and
+    must raise AgentNexusError with error_code MISSING_REQUIRED_FIELD, and
     the error details must mention the name of the missing field.
 
     **Validates: Requirements 1.4**
@@ -325,7 +325,7 @@ def test_prop_register_missing_fields_returns_error(request):
         if not type_val:
             missing_fields.append("type")
 
-        with pytest.raises(DocExchangeError) as exc_info:
+        with pytest.raises(AgentNexusError) as exc_info:
             svc.register(
                 name=name_val,
                 type=type_val,

@@ -17,16 +17,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from doc_exchange.analyzer.analyzer_service import AnalyzerService
-from doc_exchange.analyzer.base import AffectedProject, AnalysisResult, TaskTemplate
-from doc_exchange.analyzer.rule_engine import RuleEngineAnalyzer
-from doc_exchange.models.entities import SubProject
-from doc_exchange.services.audit_log_service import AuditLogService
-from doc_exchange.services.document_service import DocumentService
-from doc_exchange.services.notification_service import NotificationService
-from doc_exchange.services.schemas import PushRequest
-from doc_exchange.services.subscription_service import SubscriptionService
-from doc_exchange.services.task_service import TaskService
+from agent_nexus.analyzer.analyzer_service import AnalyzerService
+from agent_nexus.analyzer.base import AffectedProject, AnalysisResult, TaskTemplate
+from agent_nexus.analyzer.rule_engine import RuleEngineAnalyzer
+from agent_nexus.models.entities import SubProject
+from agent_nexus.services.audit_log_service import AuditLogService
+from agent_nexus.services.document_service import DocumentService
+from agent_nexus.services.notification_service import NotificationService
+from agent_nexus.services.schemas import PushRequest
+from agent_nexus.services.subscription_service import SubscriptionService
+from agent_nexus.services.task_service import TaskService
 
 
 # ---------------------------------------------------------------------------

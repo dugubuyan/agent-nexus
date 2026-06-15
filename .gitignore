@@ -91,6 +91,7 @@ logs/
 
 # Kiro IDE (all local IDE config, specs, steering)
 .kiro/
+.qoder
 
 # Paper build artifacts
 paper/_figures/

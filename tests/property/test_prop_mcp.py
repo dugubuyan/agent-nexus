@@ -1,4 +1,4 @@
-# Feature: doc-exchange-center, Property 22: project_id 合法性验证
+# Feature: agent-nexus, Property 22: project_id 合法性验证
 """
 Property-based tests for MCP tool project_id validation.
 
@@ -16,10 +16,10 @@ from hypothesis import strategies as st
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-from doc_exchange.mcp.dependencies import ServiceContainer
-from doc_exchange.mcp.tools import ToolHandler
-from doc_exchange.models import Base, ProjectSpace
-from doc_exchange.services.project_service import ProjectService
+from agent_nexus.mcp.dependencies import ServiceContainer
+from agent_nexus.mcp.tools import ToolHandler
+from agent_nexus.models import Base, ProjectSpace
+from agent_nexus.services.project_service import ProjectService
 
 
 # ---------------------------------------------------------------------------

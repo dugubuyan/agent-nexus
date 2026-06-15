@@ -95,7 +95,7 @@ python src/main.py
 ```json
 {
   "mcpServers": {
-    "doc-exchange": {
+    "agent-nexus": {
       "url": "http://localhost:10086/mcp"
     }
   }
@@ -175,11 +175,11 @@ This uses the same `DocumentService.push` pipeline as `push_document` (same vali
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `DOC_EXCHANGE_DB_URL` | `sqlite:///doc_exchange.db` | Database URL |
-| `DOC_EXCHANGE_DOCS_ROOT` | `./workspace` | Workspace root (docs live under `{root}/{space_id}/docs/`) |
-| `DOC_EXCHANGE_HOST` | `0.0.0.0` | Server bind host |
-| `DOC_EXCHANGE_PORT` | `10086` | Server port |
-| `DOC_EXCHANGE_DEFAULT_SPACE_ID` | `default` | Default space ID for bootstrap imports |
+| `AGENT_NEXUS_DB_URL` | `sqlite:///agent_nexus.db` | Database URL |
+| `AGENT_NEXUS_DOCS_ROOT` | `./workspace` | Workspace root (docs live under `{root}/{space_id}/docs/`) |
+| `AGENT_NEXUS_HOST` | `0.0.0.0` | Server bind host |
+| `AGENT_NEXUS_PORT` | `10086` | Server port |
+| `AGENT_NEXUS_DEFAULT_SPACE_ID` | `default` | Default space ID for bootstrap imports |
 | `PLANNER_LLM_PROVIDER` | `openai` | LLM provider for Planner AI (`openai` \| `anthropic`) |
 | `PLANNER_LLM_MODEL` | (provider default) | LLM model name |
 | `PLANNER_LLM_API_KEY` | (none) | API key; leave empty to disable AI features |

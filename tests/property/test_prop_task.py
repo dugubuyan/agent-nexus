@@ -1,6 +1,6 @@
-# Feature: doc-exchange-center, Property 18: 任务生成正确性
-# Feature: doc-exchange-center, Property 19: 任务状态机
-# Feature: doc-exchange-center, Property 20: 按 doc_id 查询任务
+# Feature: agent-nexus, Property 18: 任务生成正确性
+# Feature: agent-nexus, Property 19: 任务状态机
+# Feature: agent-nexus, Property 20: 按 doc_id 查询任务
 """
 Property-based tests for TaskService.
 
@@ -16,9 +16,9 @@ from hypothesis import strategies as st
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-from doc_exchange.analyzer.base import AffectedProject, AnalysisResult, TaskTemplate
-from doc_exchange.models import Base, ProjectSpace
-from doc_exchange.services.task_service import TaskService
+from agent_nexus.analyzer.base import AffectedProject, AnalysisResult, TaskTemplate
+from agent_nexus.models import Base, ProjectSpace
+from agent_nexus.services.task_service import TaskService
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +128,7 @@ def test_prop_task_generation_correctness(doc_id: str, version: int, affected: l
 
     **Validates: Requirements 7.1, 7.2**
     """
-    # Feature: doc-exchange-center, Property 18: 对于任意文档推送，根据文档类型和相关子项目类型的映射规则，
+    # Feature: agent-nexus, Property 18: 对于任意文档推送，根据文档类型和相关子项目类型的映射规则，
     # 应为所有受影响的子项目生成任务；生成的任务中应包含触发该任务的 doc_id 和版本号；
     # 调用 get_my_tasks 应能查询到这些任务。
     session, engine, space_id = _make_db()
@@ -195,7 +195,7 @@ def test_prop_task_state_machine(doc_id: str, version: int, project_id: str):
 
     **Validates: Requirements 7.3, 7.4**
     """
-    # Feature: doc-exchange-center, Property 19: 对于任意 pending 状态的任务，认领后状态应变为 in_progress，
+    # Feature: agent-nexus, Property 19: 对于任意 pending 状态的任务，认领后状态应变为 in_progress，
     # 且记录认领方和认领时间；完成后状态应变为 completed，且记录完成时间；
     # 状态转换不可逆（completed 任务不能回到 pending）。
     session, engine, space_id = _make_db()
@@ -285,7 +285,7 @@ def test_prop_get_tasks_by_doc_id(
 
     **Validates: Requirements 7.6**
     """
-    # Feature: doc-exchange-center, Property 20: 对于任意文档推送，通过该文档的 doc_id 查询任务，
+    # Feature: agent-nexus, Property 20: 对于任意文档推送，通过该文档的 doc_id 查询任务，
     # 应返回所有由该文档变更触发的任务，且不包含其他文档触发的任务。
 
     # Skip when both doc_ids are identical to avoid ambiguity

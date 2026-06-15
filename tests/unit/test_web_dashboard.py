@@ -24,13 +24,13 @@ from starlette.applications import Starlette
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from doc_exchange.mcp.dependencies import ServiceContainer
-from doc_exchange.mcp.tools import ToolHandler
-from doc_exchange.models import Base
-from doc_exchange.models.entities import ProjectSpace, SubProject
-from doc_exchange.search.fts import ensure_fts_table, upsert_doc
-from doc_exchange.services.schemas import PushRequest
-from doc_exchange.web.routes import register_web_routes
+from agent_nexus.mcp.dependencies import ServiceContainer
+from agent_nexus.mcp.tools import ToolHandler
+from agent_nexus.models import Base
+from agent_nexus.models.entities import ProjectSpace, SubProject
+from agent_nexus.search.fts import ensure_fts_table, upsert_doc
+from agent_nexus.services.schemas import PushRequest
+from agent_nexus.web.routes import register_web_routes
 
 
 # ---------------------------------------------------------------------------
@@ -133,8 +133,8 @@ def _make_subproject(session, space_id: str, name: str = "svc-a") -> SubProject:
 
 def _push_doc(session, tmp_path, space_id: str, project_id: str, doc_id: str, content: str, pushed_by: str | None = None) -> int:
     """Push a published document using DocumentService; returns version number."""
-    from doc_exchange.services.audit_log_service import AuditLogService
-    from doc_exchange.services.document_service import DocumentService
+    from agent_nexus.services.audit_log_service import AuditLogService
+    from agent_nexus.services.document_service import DocumentService
 
     audit = AuditLogService(session)
     svc = DocumentService(db=session, docs_root=str(tmp_path), audit_log_service=audit)
@@ -562,7 +562,7 @@ def test_api_plan_with_mock_llm_returns_proposal(test_session, tmp_path, space):
 
 def test_api_plan_does_not_persist_to_db(test_session, tmp_path, space):
     """plan endpoint must NOT create SubProjects or documents in the DB."""
-    from doc_exchange.models.entities import SubProject
+    from agent_nexus.models.entities import SubProject
 
     proposals = [{"name": "ephemeral-svc", "type": "development", "suggested_docs": []}]
     mock_llm = MagicMock()

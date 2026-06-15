@@ -11,8 +11,8 @@ DOCS_ROOT/{space_id}/docs/ it will:
   3. Push the document content (skipped if content hash already matches DB)
 
 Configure via env vars (same as main.py):
-  DOC_EXCHANGE_DB_URL    (default: sqlite:///doc_exchange.db)
-  DOC_EXCHANGE_DOCS_ROOT (default: ./workspace)
+  AGENT_NEXUS_DB_URL    (default: sqlite:///agent_nexus.db)
+  AGENT_NEXUS_DOCS_ROOT (default: ./workspace)
 """
 
 import hashlib
@@ -24,14 +24,14 @@ from typing import Optional
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
-from doc_exchange.mcp.dependencies import make_engine, make_session_factory, ServiceContainer
-from doc_exchange.models import Base
-from doc_exchange.models.entities import ProjectSpace, SubProject
-from doc_exchange.services.schemas import PushRequest
+from agent_nexus.mcp.dependencies import make_engine, make_session_factory, ServiceContainer
+from agent_nexus.models import Base
+from agent_nexus.models.entities import ProjectSpace, SubProject
+from agent_nexus.services.schemas import PushRequest
 
-DB_URL = os.environ.get("DOC_EXCHANGE_DB_URL", "sqlite:///doc_exchange.db")
-DOCS_ROOT = os.environ.get("DOC_EXCHANGE_DOCS_ROOT", "./workspace")
-DEFAULT_SPACE_ID = os.environ.get("DOC_EXCHANGE_DEFAULT_SPACE_ID", "default")
+DB_URL = os.environ.get("AGENT_NEXUS_DB_URL", "sqlite:///agent_nexus.db")
+DOCS_ROOT = os.environ.get("AGENT_NEXUS_DOCS_ROOT", "./workspace")
+DEFAULT_SPACE_ID = os.environ.get("AGENT_NEXUS_DEFAULT_SPACE_ID", "default")
 
 # Supported doc types (must match DocumentService.VALID_DOC_TYPES)
 _VALID_DOC_TYPES = {"requirement", "design", "api", "task", "schema", "runbook", "changelog", "test-plan"}

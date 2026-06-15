@@ -27,17 +27,17 @@ import pytest_asyncio
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker
 
-from doc_exchange.mcp.dependencies import ServiceContainer
-from doc_exchange.mcp.tools import ToolHandler
-from doc_exchange.models import Base
-from doc_exchange.models.entities import (
+from agent_nexus.mcp.dependencies import ServiceContainer
+from agent_nexus.mcp.tools import ToolHandler
+from agent_nexus.models import Base
+from agent_nexus.models.entities import (
     Document,
     DocumentVersion,
     SubProject,
     ProjectSpace,
 )
-from doc_exchange.planner.planner_service import PlannerService, SYSTEM_ACTOR, _DRAFT_PUSHED_BY
-from doc_exchange.search.fts import ensure_fts_table, upsert_doc
+from agent_nexus.planner.planner_service import PlannerService, SYSTEM_ACTOR, _DRAFT_PUSHED_BY
+from agent_nexus.search.fts import ensure_fts_table, upsert_doc
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +195,7 @@ def test_read_document_returns_content(fts_session, tmp_path):
     container = _make_container(fts_session, tmp_path)
 
     # First push a document via DocumentService
-    from doc_exchange.services.schemas import PushRequest
+    from agent_nexus.services.schemas import PushRequest
     req = PushRequest(
         doc_id=f"{sp.id}/design",
         content="# Design doc content",
@@ -434,7 +434,7 @@ async def test_chat_with_specific_doc_ids(fts_session, tmp_path):
     sp = _make_subproject(fts_session, space.id)
 
     container = _make_container(fts_session, tmp_path)
-    from doc_exchange.services.schemas import PushRequest
+    from agent_nexus.services.schemas import PushRequest
     req = PushRequest(
         doc_id=f"{sp.id}/design",
         content="# Design content for caching",
@@ -761,7 +761,7 @@ async def test_mcp_planner_overview_returns_cross_project_view(fts_session, tmp_
 
     container = _make_container(fts_session, tmp_path)
     # Push a document for sp1
-    from doc_exchange.services.schemas import PushRequest
+    from agent_nexus.services.schemas import PushRequest
     container.document_service.push(PushRequest(
         doc_id=f"{sp1.id}/requirement",
         content="Requirements",
@@ -816,7 +816,7 @@ def test_document_service_push_still_works_without_planner(fts_session, tmp_path
     sp = _make_subproject(fts_session, space.id)
 
     container = _make_container(fts_session, tmp_path)
-    from doc_exchange.services.schemas import PushRequest
+    from agent_nexus.services.schemas import PushRequest
     req = PushRequest(
         doc_id=f"{sp.id}/requirement",
         content="# Requirement content",

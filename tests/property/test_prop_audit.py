@@ -1,5 +1,5 @@
-# Feature: doc-exchange-center, Property 23: 写操作日志完整性
-# Feature: doc-exchange-center, Property 24: 日志查询正确性
+# Feature: agent-nexus, Property 23: 写操作日志完整性
+# Feature: agent-nexus, Property 24: 日志查询正确性
 """
 Property-based tests for AuditLogService.
 
@@ -15,10 +15,10 @@ from hypothesis import strategies as st
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-from doc_exchange.models import Base, ProjectSpace
-from doc_exchange.models.entities import AuditLog
-from doc_exchange.services.audit_log_service import AuditLogService
-from doc_exchange.services.project_service import ProjectService
+from agent_nexus.models import Base, ProjectSpace
+from agent_nexus.models.entities import AuditLog
+from agent_nexus.services.audit_log_service import AuditLogService
+from agent_nexus.services.project_service import ProjectService
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +110,7 @@ def test_prop_audit_write_integrity(
 
     **Validates: Requirements 9.1, 9.2**
     """
-    # Feature: doc-exchange-center, Property 23: 写操作日志完整性
+    # Feature: agent-nexus, Property 23: 写操作日志完整性
     session, space_id, engine = _make_session()
     try:
         svc = AuditLogService(db=session)
@@ -206,7 +206,7 @@ def test_prop_audit_query_correctness(
 
     **Validates: Requirements 9.4**
     """
-    # Feature: doc-exchange-center, Property 24: 日志查询正确性
+    # Feature: agent-nexus, Property 24: 日志查询正确性
     session, space_id, engine = _make_session()
     try:
         base_time = datetime(2024, 6, 1, 0, 0, 0, tzinfo=timezone.utc)

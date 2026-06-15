@@ -15,13 +15,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from doc_exchange.services.audit_log_service import AuditLogService
-from doc_exchange.services.document_service import DocumentService
-from doc_exchange.services.errors import DocExchangeError
-from doc_exchange.services.notification_service import NotificationService
-from doc_exchange.services.schemas import PushRequest
-from doc_exchange.services.subscription_service import SubscriptionService
-from doc_exchange.services.task_service import TaskService
+from agent_nexus.services.audit_log_service import AuditLogService
+from agent_nexus.services.document_service import DocumentService
+from agent_nexus.services.errors import AgentNexusError
+from agent_nexus.services.notification_service import NotificationService
+from agent_nexus.services.schemas import PushRequest
+from agent_nexus.services.subscription_service import SubscriptionService
+from agent_nexus.services.task_service import TaskService
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +83,7 @@ def test_publish_draft_updates_db_status_to_published(db_session, default_space,
 
 
 def test_publish_draft_sets_published_at(db_session, default_space, tmp_docs_root):
-    from doc_exchange.models.entities import DocumentVersion
+    from agent_nexus.models.entities import DocumentVersion
 
     svc = _make_service(db_session, tmp_docs_root)
     _push_draft(svc, "sub1/api", "# Draft API", project_space_id=default_space.id)
@@ -116,7 +116,7 @@ def test_publish_draft_nonexistent_version_raises_invalid_status_transition(
 ):
     svc = _make_service(db_session, tmp_docs_root)
     # No document pushed at all
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.publish_draft("sub1/design", version=99, project_space_id=default_space.id)
     assert exc_info.value.error_code == "INVALID_STATUS_TRANSITION"
 
@@ -125,7 +125,7 @@ def test_publish_draft_nonexistent_doc_raises_invalid_status_transition(
     db_session, default_space, tmp_docs_root
 ):
     svc = _make_service(db_session, tmp_docs_root)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.publish_draft("nonexistent/requirement", version=1, project_space_id=default_space.id)
     assert exc_info.value.error_code == "INVALID_STATUS_TRANSITION"
 
@@ -137,7 +137,7 @@ def test_publish_draft_already_published_raises_invalid_status_transition(
     # Push as external agent → status=published
     _push(svc, "sub1/design", "# Published", pushed_by="agent-1", project_space_id=default_space.id)
 
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.publish_draft("sub1/design", version=1, project_space_id=default_space.id)
     assert exc_info.value.error_code == "INVALID_STATUS_TRANSITION"
 
@@ -148,7 +148,7 @@ def test_publish_draft_already_published_error_message_contains_status(
     svc = _make_service(db_session, tmp_docs_root)
     _push(svc, "sub1/api", "# Published", pushed_by="agent-1", project_space_id=default_space.id)
 
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.publish_draft("sub1/api", version=1, project_space_id=default_space.id)
     # Error message should mention the current status (Req 11.6)
     assert "published" in exc_info.value.message.lower()
@@ -162,7 +162,7 @@ def test_publish_draft_double_publish_raises_invalid_status_transition(
     svc.publish_draft("sub1/task", version=1, project_space_id=default_space.id)
 
     # Second publish attempt should fail
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.publish_draft("sub1/task", version=1, project_space_id=default_space.id)
     assert exc_info.value.error_code == "INVALID_STATUS_TRANSITION"
 
@@ -176,8 +176,8 @@ def test_publish_draft_triggers_notifications_for_subscribers(
     db_session, default_space, tmp_docs_root
 ):
     """When pipeline services are configured, publish_draft triggers notifications."""
-    from doc_exchange.analyzer.analyzer_service import AnalyzerService
-    from doc_exchange.analyzer.rule_engine import RuleEngineAnalyzer
+    from agent_nexus.analyzer.analyzer_service import AnalyzerService
+    from agent_nexus.analyzer.rule_engine import RuleEngineAnalyzer
 
     notification_svc = NotificationService(db=db_session)
     subscription_svc = SubscriptionService(db=db_session)
@@ -202,7 +202,7 @@ def test_publish_draft_triggers_notifications_for_subscribers(
     # Add a subscriber for the doc type
     import uuid
     from datetime import datetime, timezone
-    from doc_exchange.models.entities import Subscription
+    from agent_nexus.models.entities import Subscription
 
     subscriber_id = str(uuid.uuid4())
     sub = Subscription(

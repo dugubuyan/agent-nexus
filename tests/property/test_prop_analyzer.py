@@ -1,4 +1,4 @@
-# Feature: doc-exchange-center, Property 29: Analyzer 降级
+# Feature: agent-nexus, Property 29: Analyzer 降级
 """
 Property-based tests for Analyzer graceful degradation.
 
@@ -15,12 +15,12 @@ from hypothesis import strategies as st
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-from doc_exchange.analyzer.analyzer_service import AnalyzerService
-from doc_exchange.analyzer.base import AnalysisResult, Analyzer
-from doc_exchange.analyzer.rule_engine import RuleEngineAnalyzer
-from doc_exchange.models import Base, ProjectSpace
-from doc_exchange.models.entities import Document, DocumentVersion, SubProject
-from doc_exchange.services.audit_log_service import AuditLogService
+from agent_nexus.analyzer.analyzer_service import AnalyzerService
+from agent_nexus.analyzer.base import AnalysisResult, Analyzer
+from agent_nexus.analyzer.rule_engine import RuleEngineAnalyzer
+from agent_nexus.models import Base, ProjectSpace
+from agent_nexus.models.entities import Document, DocumentVersion, SubProject
+from agent_nexus.services.audit_log_service import AuditLogService
 
 
 # ---------------------------------------------------------------------------

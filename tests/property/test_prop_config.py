@@ -1,4 +1,4 @@
-# Feature: doc-exchange-center, Property 17: get_config 按 stage 隔离
+# Feature: agent-nexus, Property 17: get_config 按 stage 隔离
 """
 Property-based tests for get_config stage isolation.
 
@@ -15,11 +15,11 @@ from hypothesis import strategies as st
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-from doc_exchange.mcp.dependencies import ServiceContainer
-from doc_exchange.mcp.tools import ToolHandler
-from doc_exchange.models import Base, ProjectSpace
-from doc_exchange.services.document_service import VALID_CONFIG_VARIANTS
-from doc_exchange.services.project_service import ProjectService
+from agent_nexus.mcp.dependencies import ServiceContainer
+from agent_nexus.mcp.tools import ToolHandler
+from agent_nexus.models import Base, ProjectSpace
+from agent_nexus.services.document_service import VALID_CONFIG_VARIANTS
+from agent_nexus.services.project_service import ProjectService
 
 
 # ---------------------------------------------------------------------------

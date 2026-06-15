@@ -16,12 +16,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from doc_exchange.analyzer import (
+from agent_nexus.analyzer import (
     AnalyzerService,
     RuleEngineAnalyzer,
 )
-from doc_exchange.analyzer.base import AnalysisResult, Analyzer
-from doc_exchange.services.audit_log_service import AuditLogService
+from agent_nexus.analyzer.base import AnalysisResult, Analyzer
+from agent_nexus.services.audit_log_service import AuditLogService
 
 
 # ---------------------------------------------------------------------------

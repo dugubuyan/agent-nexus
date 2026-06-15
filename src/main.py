@@ -1,30 +1,30 @@
 """
-Main entry point for the Doc Exchange Center.
+Main entry point for the AgentNexus.
 
 Starts the MCP server in HTTP mode so multiple agents can connect simultaneously.
 Also serves the Web Dashboard at http://{HOST}:{PORT}/.
 
 Default: http://0.0.0.0:10086/mcp
 Configure via env vars:
-  DOC_EXCHANGE_DB_URL           (default: sqlite:///doc_exchange.db)
-  DOC_EXCHANGE_DOCS_ROOT        (default: ./workspace)
-  DOC_EXCHANGE_HOST             (default: 0.0.0.0)
-  DOC_EXCHANGE_PORT             (default: 10086)
+  AGENT_NEXUS_DB_URL           (default: sqlite:///agent_nexus.db)
+  AGENT_NEXUS_DOCS_ROOT        (default: ./workspace)
+  AGENT_NEXUS_HOST             (default: 0.0.0.0)
+  AGENT_NEXUS_PORT             (default: 10086)
 """
 
 import os
 
 # Read config BEFORE importing server.py, because server.py creates the
 # FastMCP instance at import time and reads host/port from env vars.
-HOST = os.environ.get("DOC_EXCHANGE_HOST", "0.0.0.0")
-PORT = int(os.environ.get("DOC_EXCHANGE_PORT", "10086"))
+HOST = os.environ.get("AGENT_NEXUS_HOST", "0.0.0.0")
+PORT = int(os.environ.get("AGENT_NEXUS_PORT", "10086"))
 
-from doc_exchange.models import Base
-from doc_exchange.mcp.dependencies import make_engine
-from doc_exchange.mcp.server import mcp
+from agent_nexus.models import Base
+from agent_nexus.mcp.dependencies import make_engine
+from agent_nexus.mcp.server import mcp
 
-DB_URL = os.environ.get("DOC_EXCHANGE_DB_URL", "sqlite:///doc_exchange.db")
-DOCS_ROOT = os.environ.get("DOC_EXCHANGE_DOCS_ROOT", "./workspace")
+DB_URL = os.environ.get("AGENT_NEXUS_DB_URL", "sqlite:///agent_nexus.db")
+DOCS_ROOT = os.environ.get("AGENT_NEXUS_DOCS_ROOT", "./workspace")
 
 
 def main() -> None:
@@ -33,7 +33,7 @@ def main() -> None:
     Base.metadata.create_all(engine)
 
     # 2. Initialize FTS5 full-text search table (idempotent, backfills historical data)
-    from doc_exchange.search.fts import ensure_fts_table, rebuild_fts_index_if_empty
+    from agent_nexus.search.fts import ensure_fts_table, rebuild_fts_index_if_empty
     ensure_fts_table(engine)
     rebuild_fts_index_if_empty(engine)
 
@@ -47,7 +47,7 @@ def main() -> None:
     if transport == "stdio":
         mcp.run(transport="stdio")
     else:
-        print(f"Doc Exchange Center running at http://{HOST}:{PORT}/mcp")
+        print(f"AgentNexus running at http://{HOST}:{PORT}/mcp")
         print(f"Web Dashboard at http://{HOST}:{PORT}/")
         mcp.run(transport="streamable-http")
 

@@ -1,5 +1,5 @@
-# Feature: doc-exchange-center, Property 25: Project_Space 数据隔离
-# Feature: doc-exchange-center, Property 26: 归档状态拒绝写入
+# Feature: agent-nexus, Property 25: Project_Space 数据隔离
+# Feature: agent-nexus, Property 26: 归档状态拒绝写入
 """
 Property-based tests for Project_Space multi-tenancy isolation and archive enforcement.
 
@@ -16,16 +16,16 @@ from hypothesis import strategies as st
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-from doc_exchange.mcp.dependencies import ServiceContainer
-from doc_exchange.mcp.tools import ToolHandler
-from doc_exchange.models import Base, ProjectSpace
-from doc_exchange.services.document_service import DocumentService
-from doc_exchange.services.audit_log_service import AuditLogService
-from doc_exchange.services.notification_service import NotificationService
-from doc_exchange.services.project_service import ProjectService
-from doc_exchange.services.schemas import PushRequest
-from doc_exchange.services.subscription_service import SubscriptionService
-from doc_exchange.services.task_service import TaskService
+from agent_nexus.mcp.dependencies import ServiceContainer
+from agent_nexus.mcp.tools import ToolHandler
+from agent_nexus.models import Base, ProjectSpace
+from agent_nexus.services.document_service import DocumentService
+from agent_nexus.services.audit_log_service import AuditLogService
+from agent_nexus.services.notification_service import NotificationService
+from agent_nexus.services.project_service import ProjectService
+from agent_nexus.services.schemas import PushRequest
+from agent_nexus.services.subscription_service import SubscriptionService
+from agent_nexus.services.task_service import TaskService
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +175,7 @@ def test_prop_space_data_isolation_documents(num_docs: int):
                     pushed_doc_ids.append(doc_id)
 
             # Querying the same doc_id in Space B must raise DOC_NOT_FOUND (not return Space A data)
-            from doc_exchange.services.errors import DocExchangeError
+            from agent_nexus.services.errors import AgentNexusError
             for doc_id in pushed_doc_ids:
                 try:
                     result = doc_svc.get(doc_id=doc_id, project_space_id=space_b.id)
@@ -183,7 +183,7 @@ def test_prop_space_data_isolation_documents(num_docs: int):
                     pytest.fail(
                         f"Document {doc_id!r} from Space A was visible in Space B: {result}"
                     )
-                except DocExchangeError as e:
+                except AgentNexusError as e:
                     assert e.error_code == "DOC_NOT_FOUND", (
                         f"Expected DOC_NOT_FOUND for cross-space query, got {e.error_code}"
                     )
@@ -255,7 +255,7 @@ def test_prop_space_data_isolation_tasks(num_tasks: int):
         sub_a_id = _register_subproject(session, space_a.id)
 
         # Create tasks in Space A
-        from doc_exchange.analyzer.base import AnalysisResult, AffectedProject, TaskTemplate
+        from agent_nexus.analyzer.base import AnalysisResult, AffectedProject, TaskTemplate
         analysis = AnalysisResult(
             affected_projects=[
                 AffectedProject(

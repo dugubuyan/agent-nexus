@@ -5,7 +5,7 @@ Unit tests for SubscriptionService (Requirements 4.1 – 4.5).
 import pytest
 from sqlalchemy.orm import Session
 
-from doc_exchange.services import DocExchangeError, ProjectService, SubscriptionService
+from agent_nexus.services import AgentNexusError, ProjectService, SubscriptionService
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +64,7 @@ def test_add_rule_nonexistent_project_raises_project_not_found(db_session, defau
     """add_rule for non-existent project_id raises PROJECT_NOT_FOUND (Req 4.5)."""
     svc = make_svc(db_session)
 
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.add_rule(
             subscriber_project_id="does-not-exist",
             project_space_id=default_space.id,
@@ -79,7 +79,7 @@ def test_add_rule_without_target_raises_missing_field(db_session, default_space)
     svc = make_svc(db_session)
     proj = register_project(db_session, default_space.id)
 
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.add_rule(
             subscriber_project_id=proj.id,
             project_space_id=default_space.id,

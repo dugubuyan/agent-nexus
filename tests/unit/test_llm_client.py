@@ -1,5 +1,5 @@
 """
-Unit tests for src/doc_exchange/planner/llm_client.py
+Unit tests for src/agent_nexus/planner/llm_client.py
 
 覆盖：
 - make_llm_client 工厂函数（env 优先级、provider 路由、api_key 缺失返回 None）
@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from doc_exchange.planner.llm_client import (
+from agent_nexus.planner.llm_client import (
     AnthropicClient,
     LLMClient,
     OpenAIClient,
@@ -44,7 +44,7 @@ class TestMakeLlmClient:
         """显式传入 api_key 优先于 env。"""
         monkeypatch.delenv("PLANNER_LLM_API_KEY", raising=False)
         # OpenAI 的 __init__ 会 import openai，需要 mock
-        with patch("doc_exchange.planner.llm_client.OpenAIClient.__init__", return_value=None):
+        with patch("agent_nexus.planner.llm_client.OpenAIClient.__init__", return_value=None):
             client = make_llm_client(provider="openai", api_key="sk-explicit")
         assert client is not None
 
@@ -52,32 +52,32 @@ class TestMakeLlmClient:
         """无显式 api_key 时从 env 读取。"""
         monkeypatch.setenv("PLANNER_LLM_API_KEY", "sk-from-env")
         monkeypatch.setenv("PLANNER_LLM_PROVIDER", "openai")
-        with patch("doc_exchange.planner.llm_client.OpenAIClient.__init__", return_value=None):
+        with patch("agent_nexus.planner.llm_client.OpenAIClient.__init__", return_value=None):
             client = make_llm_client()
         assert client is not None
 
     def test_routes_to_openai_client(self, monkeypatch):
         """provider=openai 时返回 OpenAIClient 实例。"""
         monkeypatch.setenv("PLANNER_LLM_API_KEY", "sk-test")
-        with patch("doc_exchange.planner.llm_client.OpenAIClient.__init__", return_value=None):
+        with patch("agent_nexus.planner.llm_client.OpenAIClient.__init__", return_value=None):
             client = make_llm_client(provider="openai", api_key="sk-test")
         assert isinstance(client, OpenAIClient)
 
     def test_routes_to_anthropic_client(self, monkeypatch):
         """provider=anthropic 时返回 AnthropicClient 实例。"""
-        with patch("doc_exchange.planner.llm_client.AnthropicClient.__init__", return_value=None):
+        with patch("agent_nexus.planner.llm_client.AnthropicClient.__init__", return_value=None):
             client = make_llm_client(provider="anthropic", api_key="sk-ant-test")
         assert isinstance(client, AnthropicClient)
 
     def test_alias_gpt_routes_to_openai(self, monkeypatch):
         """'gpt' 别名应路由到 OpenAIClient。"""
-        with patch("doc_exchange.planner.llm_client.OpenAIClient.__init__", return_value=None):
+        with patch("agent_nexus.planner.llm_client.OpenAIClient.__init__", return_value=None):
             client = make_llm_client(provider="gpt", api_key="sk-test")
         assert isinstance(client, OpenAIClient)
 
     def test_alias_claude_routes_to_anthropic(self, monkeypatch):
         """'claude' 别名应路由到 AnthropicClient。"""
-        with patch("doc_exchange.planner.llm_client.AnthropicClient.__init__", return_value=None):
+        with patch("agent_nexus.planner.llm_client.AnthropicClient.__init__", return_value=None):
             client = make_llm_client(provider="claude", api_key="sk-ant-test")
         assert isinstance(client, AnthropicClient)
 

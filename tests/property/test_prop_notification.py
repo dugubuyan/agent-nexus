@@ -1,6 +1,6 @@
-# Feature: doc-exchange-center, Property 14: 通知生成与查询
-# Feature: doc-exchange-center, Property 15: ack 后通知消失
-# Feature: doc-exchange-center, Property 16: 通知幂等性
+# Feature: agent-nexus, Property 14: 通知生成与查询
+# Feature: agent-nexus, Property 15: ack 后通知消失
+# Feature: agent-nexus, Property 16: 通知幂等性
 """
 Property-based tests for notification generation, querying, and idempotency.
 
@@ -16,11 +16,11 @@ from hypothesis import strategies as st
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-from doc_exchange.models import Base, ProjectSpace
-from doc_exchange.models.entities import SubProject
-from doc_exchange.services.notification_service import NotificationService
-from doc_exchange.services.project_service import ProjectService
-from doc_exchange.services.subscription_service import SubscriptionService
+from agent_nexus.models import Base, ProjectSpace
+from agent_nexus.models.entities import SubProject
+from agent_nexus.services.notification_service import NotificationService
+from agent_nexus.services.project_service import ProjectService
+from agent_nexus.services.subscription_service import SubscriptionService
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +105,7 @@ def test_prop_notification_generation_and_query(
     successful push. The notification must contain the correct doc_id, version,
     and be in unread status.
 
-    # Feature: doc-exchange-center, Property 14: 对于任意文档推送，所有订阅了该文档（按 doc_id 或 doc_type）
+    # Feature: agent-nexus, Property 14: 对于任意文档推送，所有订阅了该文档（按 doc_id 或 doc_type）
     # 的子项目，在推送成功后调用 get_my_updates 应能看到对应的未读通知，通知中包含正确的 doc_id、版本号。
 
     **Validates: Requirements 5.1, 5.2**
@@ -196,7 +196,7 @@ def test_prop_ack_removes_notification_from_unread(doc_type: str, version: int):
     must no longer appear in get_unread. The ack operation is idempotent:
     calling ack on an already-read notification must not raise an error.
 
-    # Feature: doc-exchange-center, Property 15: 对于任意未读通知，调用 ack_update 后，
+    # Feature: agent-nexus, Property 15: 对于任意未读通知，调用 ack_update 后，
     # 再次调用 get_my_updates 应不再返回该通知；ack 操作是幂等的（对已读通知再次 ack 不报错）。
 
     **Validates: Requirements 5.3**
@@ -273,7 +273,7 @@ def test_prop_notification_idempotency(doc_type: str, version: int, repeat_count
     at most one notification in get_unread, regardless of how many times
     generate() is called internally.
 
-    # Feature: doc-exchange-center, Property 16: 对于任意文档的单次版本变更，同一订阅方在
+    # Feature: agent-nexus, Property 16: 对于任意文档的单次版本变更，同一订阅方在
     # get_my_updates 中最多只能看到一条对应的通知记录，无论触发了多少次内部处理。
 
     **Validates: Requirements 5.5**

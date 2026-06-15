@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy.orm import Session
 
-from doc_exchange.models.entities import Document, DocumentVersion, DocumentVersionContent
-from doc_exchange.services.version_retention_service import VersionRetentionService
+from agent_nexus.models.entities import Document, DocumentVersion, DocumentVersionContent
+from agent_nexus.services.version_retention_service import VersionRetentionService
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +246,7 @@ class TestRunCleanup:
 
     def test_run_cleanup_scans_all_spaces_when_no_filter(self, db_session, engine):
         """When project_space_id is None, all spaces are scanned."""
-        from doc_exchange.models.entities import ProjectSpace
+        from agent_nexus.models.entities import ProjectSpace
 
         space_a = ProjectSpace(
             id=str(uuid.uuid4()),

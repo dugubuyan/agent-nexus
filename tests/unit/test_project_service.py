@@ -5,8 +5,8 @@ Unit tests for ProjectService (Requirements 1.1 – 1.5).
 import pytest
 from sqlalchemy.orm import Session
 
-from doc_exchange.models.entities import ProjectSpace
-from doc_exchange.services import DocExchangeError, ProjectService
+from agent_nexus.models.entities import ProjectSpace
+from agent_nexus.services import AgentNexusError, ProjectService
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +61,7 @@ def test_register_default_stage_is_design(db_session, default_space):
 def test_register_missing_name_raises_error(db_session, default_space):
     """Missing name raises MISSING_REQUIRED_FIELD (Req 1.4)."""
     svc = make_service(db_session)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.register(name="", type="development", project_space_id=default_space.id)
 
     err = exc_info.value
@@ -72,7 +72,7 @@ def test_register_missing_name_raises_error(db_session, default_space):
 def test_register_missing_type_raises_error(db_session, default_space):
     """Missing type raises MISSING_REQUIRED_FIELD (Req 1.4)."""
     svc = make_service(db_session)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.register(name="my-project", type="", project_space_id=default_space.id)
 
     err = exc_info.value
@@ -83,7 +83,7 @@ def test_register_missing_type_raises_error(db_session, default_space):
 def test_register_none_name_raises_error(db_session, default_space):
     """None name raises MISSING_REQUIRED_FIELD (Req 1.4)."""
     svc = make_service(db_session)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.register(name=None, type="development", project_space_id=default_space.id)
 
     assert exc_info.value.error_code == "MISSING_REQUIRED_FIELD"
@@ -155,7 +155,7 @@ def test_change_stage_updates_stage_updated_at(db_session, default_space):
 def test_change_stage_nonexistent_project_raises_error(db_session, default_space):
     """change_stage on unknown project_id raises PROJECT_NOT_FOUND."""
     svc = make_service(db_session)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.change_stage("nonexistent-id", "testing", default_space.id)
 
     assert exc_info.value.error_code == "PROJECT_NOT_FOUND"

@@ -1,5 +1,5 @@
-# Feature: doc-exchange-center, Property 12: 订阅规则 Round-Trip
-# Feature: doc-exchange-center, Property 13: 订阅推断正确性
+# Feature: agent-nexus, Property 12: 订阅规则 Round-Trip
+# Feature: agent-nexus, Property 13: 订阅推断正确性
 """
 Property-based tests for subscription rules.
 
@@ -15,10 +15,10 @@ from hypothesis import strategies as st
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-from doc_exchange.models import Base, ProjectSpace
-from doc_exchange.models.entities import SubProject
-from doc_exchange.services.project_service import ProjectService
-from doc_exchange.services.subscription_service import (
+from agent_nexus.models import Base, ProjectSpace
+from agent_nexus.models.entities import SubProject
+from agent_nexus.services.project_service import ProjectService
+from agent_nexus.services.subscription_service import (
     INITIAL_SUBSCRIPTION_MAP,
     SubscriptionService,
 )
@@ -91,7 +91,7 @@ def test_prop_subscription_rule_round_trip(doc_type: str):
 
     **Validates: Requirements 4.1, 4.2, 4.3**
     """
-    # Feature: doc-exchange-center, Property 12: 对于任意合法的订阅规则，添加后查询订阅列表应包含该规则；
+    # Feature: agent-nexus, Property 12: 对于任意合法的订阅规则，添加后查询订阅列表应包含该规则；
     # 删除该规则后，查询订阅列表应不再包含该规则。
     session, engine, space_id, subproject_id = _make_db_with_subproject("testing")
     try:
@@ -133,7 +133,7 @@ def test_prop_subscription_rule_round_trip_by_doc_id(doc_type: str):
 
     **Validates: Requirements 4.1, 4.2, 4.3**
     """
-    # Feature: doc-exchange-center, Property 12: doc_id 订阅 Round-Trip
+    # Feature: agent-nexus, Property 12: doc_id 订阅 Round-Trip
     session, engine, space_id, subproject_id = _make_db_with_subproject("development")
     try:
         svc = SubscriptionService(session)
@@ -179,7 +179,7 @@ def test_prop_infer_initial_subscriptions_matches_mapping(proj_type: str):
 
     **Validates: Requirements 4.4**
     """
-    # Feature: doc-exchange-center, Property 13: 对于任意子项目类型，注册后系统推断的初始订阅规则
+    # Feature: agent-nexus, Property 13: 对于任意子项目类型，注册后系统推断的初始订阅规则
     # 应符合预定义的类型映射表。
     session, engine, space_id, subproject_id = _make_db_with_subproject(proj_type)
     try:

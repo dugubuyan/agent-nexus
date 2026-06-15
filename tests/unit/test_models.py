@@ -14,7 +14,7 @@ import pytest
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
-from doc_exchange.models import (
+from agent_nexus.models import (
     AuditLog,
     Base,
     Document,

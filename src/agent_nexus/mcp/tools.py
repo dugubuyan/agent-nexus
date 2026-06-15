@@ -1,0 +1,1042 @@
+"""
+ToolHandler: implements all MCP tool logic in a testable class.
+
+Each method validates project_id, checks ProjectSpace archive status for
+write operations, then delegates to the appropriate service.
+
+Covers Requirements 8.1-8.5, 10.6, 10.7.
+"""
+
+from agent_nexus.models.entities import ProjectSpace, SubProject
+from agent_nexus.services.errors import AgentNexusError
+from agent_nexus.services.schemas import PushRequest
+
+from .dependencies import ServiceContainer
+
+VALID_CONFIG_VARIANTS = {"dev", "test", "prod"}
+
+
+class ToolHandler:
+    """Contains all MCP tool logic, decoupled from the MCP server registration."""
+
+    def __init__(self, container: ServiceContainer):
+        self._c = container
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _get_subproject(self, project_id: str) -> SubProject | None:
+        """Return the SubProject for project_id, searching across all spaces."""
+        return (
+            self._c.db.query(SubProject)
+            .filter(SubProject.id == project_id)
+            .first()
+        )
+
+    def _get_space(self, project_space_id: str) -> ProjectSpace | None:
+        return (
+            self._c.db.query(ProjectSpace)
+            .filter(ProjectSpace.id == project_space_id)
+            .first()
+        )
+
+    def _validate_project(self, project_id: str) -> SubProject:
+        """
+        Validate that project_id exists.
+
+        Returns the SubProject on success.
+        Raises AgentNexusError(UNAUTHORIZED) if not found.
+        """
+        subproject = self._get_subproject(project_id)
+        if subproject is None:
+            raise AgentNexusError(
+                error_code="UNAUTHORIZED",
+                message=f"project_id '{project_id}' does not exist.",
+                details={"project_id": project_id},
+            )
+        return subproject
+
+    def _check_not_archived(self, project_space_id: str) -> None:
+        """
+        Check that the ProjectSpace is not archived.
+
+        Raises AgentNexusError(SPACE_ARCHIVED) if archived.
+        Covers Requirements 10.6, 10.7.
+        """
+        space = self._get_space(project_space_id)
+        if space is not None and space.status == "archived":
+            raise AgentNexusError(
+                error_code="SPACE_ARCHIVED",
+                message="Project space is archived. Write operations are not allowed.",
+                details={"project_space_id": project_space_id},
+            )
+
+    @staticmethod
+    def _error_dict(exc: AgentNexusError) -> dict:
+        return {"error": exc.error_code, "message": exc.message}
+
+    # ------------------------------------------------------------------
+    # Tool: push_document  (write — checks archive)
+    # ------------------------------------------------------------------
+
+    async def push_document(
+        self,
+        project_id: str,
+        doc_id: str,
+        content: str,
+        metadata: dict | None = None,
+    ) -> dict:
+        """
+        Push a new document version.
+
+        Validates project_id, checks space not archived, then delegates to
+        DocumentService.push().
+
+        Requirements 8.1, 8.4, 10.6, 10.7
+        """
+        if metadata is None:
+            metadata = {}
+        try:
+            subproject = self._validate_project(project_id)
+            self._check_not_archived(subproject.project_space_id)
+
+            req = PushRequest(
+                doc_id=doc_id,
+                content=content,
+                pushed_by=project_id,
+                project_space_id=subproject.project_space_id,
+                metadata=metadata,
+            )
+            result = self._c.document_service.push(req)
+            return result.model_dump()
+        except AgentNexusError as exc:
+            return self._error_dict(exc)
+
+    # ------------------------------------------------------------------
+    # Tool: get_document  (read)
+    # ------------------------------------------------------------------
+
+    async def get_document(
+        self,
+        project_id: str,
+        doc_id: str,
+        version: int | None = None,
+    ) -> dict:
+        """
+        Retrieve a document (latest or specific version).
+
+        Requirements 8.1, 8.4
+        """
+        try:
+            subproject = self._validate_project(project_id)
+            result = self._c.document_service.get(
+                doc_id=doc_id,
+                project_space_id=subproject.project_space_id,
+                version=version,
+            )
+            return result.model_dump()
+        except AgentNexusError as exc:
+            return self._error_dict(exc)
+
+    # ------------------------------------------------------------------
+    # Tool: get_my_updates  (read)
+    # ------------------------------------------------------------------
+
+    async def get_my_updates(self, project_id: str) -> list[dict]:
+        """
+        Return all unread notifications for the given project_id.
+
+        Requirements 8.1, 8.4
+        """
+        try:
+            subproject = self._validate_project(project_id)
+            notifications = self._c.notification_service.get_unread(
+                project_id=project_id,
+                project_space_id=subproject.project_space_id,
+            )
+            return [
+                {
+                    "id": n.id,
+                    "doc_id": n.document_id,
+                    "version": n.version,
+                    "created_at": n.created_at.isoformat(),
+                    "status": n.status,
+                }
+                for n in notifications
+            ]
+        except AgentNexusError as exc:
+            return [self._error_dict(exc)]
+
+    # ------------------------------------------------------------------
+    # Tool: ack_update  (write — checks archive)
+    # ------------------------------------------------------------------
+
+    async def ack_update(self, project_id: str, update_id: str) -> dict:
+        """
+        Acknowledge (mark as read) a notification.
+
+        Requirements 8.1, 8.4, 10.6, 10.7
+        """
+        try:
+            subproject = self._validate_project(project_id)
+            self._check_not_archived(subproject.project_space_id)
+
+            self._c.notification_service.ack(
+                update_id=update_id,
+                project_id=project_id,
+                project_space_id=subproject.project_space_id,
+            )
+            return {"status": "ok", "update_id": update_id}
+        except AgentNexusError as exc:
+            return self._error_dict(exc)
+
+    # ------------------------------------------------------------------
+    # Tool: get_my_tasks  (read)
+    # ------------------------------------------------------------------
+
+    async def get_my_tasks(self, project_id: str) -> list[dict]:
+        """
+        Return all pending/in-progress tasks for the given project_id.
+
+        Requirements 8.1, 8.4
+        """
+        try:
+            subproject = self._validate_project(project_id)
+            tasks = self._c.task_service.get_pending(
+                project_id=project_id,
+                project_space_id=subproject.project_space_id,
+            )
+            return [
+                {
+                    "id": t.id,
+                    "title": t.title,
+                    "description": t.description,
+                    "status": t.status,
+                    "trigger_doc_id": t.trigger_doc_id,
+                    "trigger_version": t.trigger_version,
+                    "created_at": t.created_at.isoformat(),
+                }
+                for t in tasks
+            ]
+        except AgentNexusError as exc:
+            return [self._error_dict(exc)]
+
+    # ------------------------------------------------------------------
+    # Tool: get_document_checklist  (read)
+    # ------------------------------------------------------------------
+
+    # Built-in checklist rules indexed by (project_type, stage).
+    # "*" as project_type means "any type not explicitly listed".
+    # Values are doc_type prefixes; prefix matching is used when checking
+    # existing docs (e.g. "config" matches config/dev, config/prod, etc.)
+    # Full variant paths like "runbook/deploy" are also supported and matched exactly.
+    _BUILTIN_CHECKLISTS: dict = {
+        # --- development projects ---
+        ("development", "design"):      {"required": ["requirement"],                        "recommended": ["design"]},
+        ("development", "development"): {"required": ["requirement", "design", "api"],       "recommended": ["task", "schema", "config"]},
+        ("development", "testing"):     {"required": ["api", "test-plan"],                   "recommended": ["task", "config", "requirement"]},
+        ("development", "deployment"):  {"required": ["config", "runbook"],                  "recommended": ["changelog"]},
+        ("development", "upgrade"):     {"required": ["changelog", "config"],                "recommended": ["runbook", "api"]},
+        # --- testing projects ---
+        ("testing", "design"):          {"required": ["test-plan"],                          "recommended": ["requirement"]},
+        ("testing", "development"):     {"required": ["test-plan", "api"],                   "recommended": ["task", "config"]},
+        ("testing", "testing"):         {"required": ["test-plan", "api"],                   "recommended": ["task", "config/test"]},
+        ("testing", "deployment"):      {"required": ["test-plan", "config/test"],           "recommended": []},
+        ("testing", "upgrade"):         {"required": ["test-plan", "changelog"],             "recommended": []},
+        # --- infra projects ---
+        ("infra", "design"):            {"required": ["design"],                             "recommended": ["requirement"]},
+        ("infra", "development"):       {"required": ["design", "config/prod"],              "recommended": ["runbook/deploy", "schema"]},
+        ("infra", "testing"):           {"required": ["runbook/deploy", "config/prod"],      "recommended": ["runbook/rollback"]},
+        ("infra", "deployment"):        {"required": ["runbook/deploy", "config/prod"],      "recommended": ["runbook/rollback", "changelog"]},
+        ("infra", "upgrade"):           {"required": ["runbook/rollback", "changelog", "config/prod"], "recommended": ["runbook/deploy"]},
+        # --- ops projects ---
+        ("ops", "design"):              {"required": ["requirement"],                        "recommended": ["design"]},
+        ("ops", "development"):         {"required": ["requirement", "config"],              "recommended": ["runbook", "schema"]},
+        ("ops", "testing"):             {"required": ["config", "runbook"],                  "recommended": ["test-plan"]},
+        ("ops", "deployment"):          {"required": ["config/prod", "runbook/deploy"],      "recommended": ["runbook/rollback"]},
+        ("ops", "upgrade"):             {"required": ["changelog", "config/prod"],           "recommended": ["runbook/rollback"]},
+        # --- shared projects ---
+        ("shared", "design"):           {"required": ["requirement", "design"],              "recommended": []},
+        ("shared", "development"):      {"required": ["requirement", "design", "api"],       "recommended": ["schema", "changelog"]},
+        ("shared", "testing"):          {"required": ["api", "test-plan"],                   "recommended": ["changelog"]},
+        ("shared", "deployment"):       {"required": ["api", "config"],                      "recommended": ["changelog"]},
+        ("shared", "upgrade"):          {"required": ["changelog/breaking", "api"],          "recommended": ["config"]},
+        # --- fallback for unknown types ---
+        ("*", "design"):                {"required": ["requirement"],                        "recommended": ["design"]},
+        ("*", "development"):           {"required": ["requirement", "design"],              "recommended": ["api", "task"]},
+        ("*", "testing"):               {"required": ["test-plan"],                          "recommended": ["config"]},
+        ("*", "deployment"):            {"required": ["config", "runbook"],                  "recommended": []},
+        ("*", "upgrade"):               {"required": ["changelog"],                          "recommended": ["config"]},
+    }
+
+    _DOC_TYPE_DESCRIPTIONS: dict = {
+        "requirement":       "Functional and non-functional requirements",
+        "design":            "Architecture and technical design",
+        "api":               "API contracts (REST, GraphQL, gRPC, etc.)",
+        "config":            "Environment configuration (dev/test/prod)",
+        "config/dev":        "Development environment configuration",
+        "config/test":       "Test environment configuration",
+        "config/prod":       "Production environment configuration",
+        "schema":            "Database or message queue schema",
+        "schema/db":         "Database schema",
+        "runbook":           "Operational procedures",
+        "runbook/deploy":    "Deployment procedure",
+        "runbook/rollback":  "Rollback procedure",
+        "changelog":         "Release notes and breaking changes",
+        "changelog/notes":   "Cumulative release notes",
+        "changelog/breaking":"Breaking changes for current release",
+        "test-plan":         "Test strategy and test cases",
+        "task":              "Work items and implementation plans",
+        "task/checklist":    "Custom document checklist for this project",
+    }
+
+    @staticmethod
+    def _parse_checklist_markdown(content: str) -> dict[str, list[dict]]:
+        """
+        Parse a custom checklist document in the agreed Markdown format:
+
+            ## Required
+            - doc_type: description
+
+            ## Recommended
+            - doc_type: description
+
+        Returns {"required": [...], "recommended": [...]} where each item is
+        {"doc_type": str, "description": str}.
+        """
+        import re
+        result: dict[str, list[dict]] = {"required": [], "recommended": []}
+        current_section: str | None = None
+
+        for line in content.splitlines():
+            stripped = line.strip()
+            # Detect section headings
+            if re.match(r"^#{1,3}\s+Required\s*$", stripped, re.IGNORECASE):
+                current_section = "required"
+            elif re.match(r"^#{1,3}\s+Recommended\s*$", stripped, re.IGNORECASE):
+                current_section = "recommended"
+            elif stripped.startswith("-") and current_section:
+                # Parse "- doc_type: description" or "- doc_type"
+                item = stripped.lstrip("- ").strip()
+                if ":" in item:
+                    doc_type, _, description = item.partition(":")
+                    doc_type = doc_type.strip()
+                    description = description.strip()
+                else:
+                    doc_type = item.strip()
+                    description = ""
+                if doc_type:
+                    result[current_section].append({
+                        "doc_type": doc_type,
+                        "description": description,
+                    })
+        return result
+
+    def _get_builtin_rules(self, project_type: str, stage: str) -> dict:
+        """Return the built-in required/recommended lists for (project_type, stage)."""
+        key = (project_type, stage)
+        if key in self._BUILTIN_CHECKLISTS:
+            return self._BUILTIN_CHECKLISTS[key]
+        # fallback to wildcard
+        fallback = ("*", stage)
+        if fallback in self._BUILTIN_CHECKLISTS:
+            return self._BUILTIN_CHECKLISTS[fallback]
+        return {"required": [], "recommended": []}
+
+    async def get_document_checklist(self, project_id: str) -> dict:
+        """
+        Return the document completeness checklist for the given project.
+
+        Priority:
+          1. If a custom checklist document exists at {project_id}/task/checklist,
+             parse and use it (Markdown list format — see push_document for the format).
+          2. Otherwise fall back to the built-in rules for the project's (type, stage).
+
+        Use this at session start to know what documents to create before proceeding.
+        To define a custom checklist, push a document with:
+          doc_id = "{project_id}/task/checklist"
+          content = Markdown with ## Required and ## Recommended sections,
+                    each containing "- doc_type: description" list items.
+        """
+        try:
+            subproject = self._validate_project(project_id)
+
+            from agent_nexus.models.entities import Document, DocumentVersion, DocumentVersionContent
+
+            # Fetch all existing documents for this project
+            existing_docs = (
+                self._c.db.query(Document)
+                .filter(
+                    Document.subproject_id == project_id,
+                    Document.project_space_id == subproject.project_space_id,
+                )
+                .all()
+            )
+
+            # Build lookup: prefix → {doc_id, latest_version}
+            # Also store full variant paths for exact matching
+            present_map: dict[str, dict] = {}  # keyed by doc_type prefix
+            present_full_map: dict[str, dict] = {}  # keyed by "doc_type/variant" or "doc_type"
+            custom_checklist_content: str | None = None
+            checklist_doc_id = f"{project_id}/task/checklist"
+
+            for doc in existing_docs:
+                prefix = doc.doc_type
+                full_key = f"{doc.doc_type}/{doc.doc_variant}" if doc.doc_variant else doc.doc_type
+                entry = {"doc_id": doc.id, "latest_version": doc.latest_version}
+                # Keep highest version per prefix
+                if prefix not in present_map or doc.latest_version > present_map[prefix]["latest_version"]:
+                    present_map[prefix] = entry
+                present_full_map[full_key] = entry
+                # Check for custom checklist
+                if doc.id == checklist_doc_id and doc.latest_version > 0:
+                    ver = (
+                        self._c.db.query(DocumentVersion)
+                        .filter(
+                            DocumentVersion.document_id == doc.id,
+                            DocumentVersion.version == doc.latest_version,
+                        )
+                        .first()
+                    )
+                    if ver:
+                        content_rec = (
+                            self._c.db.query(DocumentVersionContent)
+                            .filter(DocumentVersionContent.version_id == ver.id)
+                            .first()
+                        )
+                        if content_rec:
+                            custom_checklist_content = content_rec.content
+
+            # Determine rules: custom or built-in
+            if custom_checklist_content:
+                parsed = self._parse_checklist_markdown(custom_checklist_content)
+                required_spec = parsed["required"]    # list of {"doc_type", "description"}
+                recommended_spec = parsed["recommended"]
+                checklist_source = "custom"
+            else:
+                rules = self._get_builtin_rules(subproject.type, subproject.stage)
+                required_spec = [
+                    {"doc_type": dt, "description": self._DOC_TYPE_DESCRIPTIONS.get(dt, "")}
+                    for dt in rules.get("required", [])
+                ]
+                recommended_spec = [
+                    {"doc_type": dt, "description": self._DOC_TYPE_DESCRIPTIONS.get(dt, "")}
+                    for dt in rules.get("recommended", [])
+                ]
+                checklist_source = "builtin"
+
+            def _is_present(doc_type: str) -> dict | None:
+                """Check presence using exact full path first, then prefix."""
+                if doc_type in present_full_map:
+                    return present_full_map[doc_type]
+                prefix = doc_type.split("/")[0]
+                if prefix in present_map:
+                    return present_map[prefix]
+                return None
+
+            def _build_entries(spec: list[dict]) -> list[dict]:
+                entries = []
+                for item in spec:
+                    dt = item["doc_type"]
+                    desc = item.get("description") or self._DOC_TYPE_DESCRIPTIONS.get(dt, "")
+                    found = _is_present(dt)
+                    if found:
+                        entries.append({
+                            "doc_type": dt,
+                            "status": "present",
+                            "doc_id": found["doc_id"],
+                            "latest_version": found["latest_version"],
+                            "description": desc,
+                        })
+                    else:
+                        entries.append({
+                            "doc_type": dt,
+                            "status": "missing",
+                            "description": desc,
+                            "suggested_doc_id": f"{project_id}/{dt}",
+                        })
+                return entries
+
+            required_entries = _build_entries(required_spec)
+            recommended_entries = _build_entries(recommended_spec)
+            present_required = sum(1 for e in required_entries if e["status"] == "present")
+            total_required = len(required_entries)
+
+            result = {
+                "project_id": project_id,
+                "project_name": subproject.name,
+                "project_type": subproject.type,
+                "stage": subproject.stage,
+                "checklist_source": checklist_source,
+                "required_docs": required_entries,
+                "recommended_docs": recommended_entries,
+                "completeness": f"{present_required}/{total_required} required docs present",
+                "all_required_present": present_required == total_required,
+            }
+            if checklist_source == "builtin":
+                result["hint"] = (
+                    f"Using built-in checklist for type='{subproject.type}', stage='{subproject.stage}'. "
+                    f"To create missing documents, call push_document(project_id='{project_id}', "
+                    f"doc_id='<suggested_doc_id>', content='# Your content here'). "
+                    f"For large documents (e.g. existing files), use the out-of-band HTTP endpoint — "
+                    f"you can execute this directly with bash: "
+                    f'curl -X POST http://localhost:10086/api/documents -H "Content-Type: application/json" '
+                    f'-d \'{{"project_id": "{project_id}", "doc_id": "<doc_id>", "content": "<content>"}}\'. '
+                    f"To customize this checklist, push a document with doc_id='{checklist_doc_id}' "
+                    "containing ## Required and ## Recommended Markdown sections."
+                )
+            return result
+        except AgentNexusError as exc:
+            return self._error_dict(exc)
+
+    # ------------------------------------------------------------------
+    # Admin tool: generate_steering_file
+    # ------------------------------------------------------------------
+
+    async def generate_steering_file(
+        self, project_name: str, project_space_id: str, client_type: str = "kiro"
+    ) -> dict:
+        """
+        Generate an agent instruction file (SDAOP) for the given client type.
+        """
+        workflow_content = f"""## Service Identity
+
+- project_name: `{project_name}`
+- project_space_id: `{project_space_id}`
+- MCP endpoint: `http://localhost:10086/mcp`
+
+## Initialization Workflow
+
+At the start of every session:
+
+1. Call `get_project_id_by_name(name="{project_name}", project_space_id="{project_space_id}")` to resolve your project_id.
+2. Call `get_my_updates_with_context(project_id=<project_id>)` to check for pending document changes.
+3. Call `get_document_checklist(project_id=<project_id>)` to see which documents are missing for your current stage.
+
+For step 2, each update contains:
+- `update_id`: acknowledge with `ack_update` after processing
+- `doc_type`: type of document (requirement/design/api/config/task)
+- `new_version`: new version number
+- `diff`: unified diff showing what changed (+ added, - removed)
+- `latest_content`: full current document content
+
+If updates exist: apply changes based on `diff` and `latest_content`, then call `ack_update(project_id, update_id)`.
+
+For step 3, if `all_required_present` is false, create the missing documents listed in `required_docs`
+before proceeding with other work. Use `suggested_doc_id` as the doc_id when calling `push_document`.
+
+## Document Convention
+
+doc_id format: `{{project_id}}/{{doc_type}}`
+
+Examples:
+- `{{project_id}}/requirement`
+- `{{project_id}}/api`
+- `{{project_id}}/design`
+- `{{project_id}}/config/dev`
+
+## Update Handling
+
+After completing significant changes, push updated documents:
+`push_document(project_id=<project_id>, doc_id="<project_id>/<doc_type>", content="<markdown content>")`
+"""
+
+        client_type = client_type.lower()
+
+        if client_type == "kiro":
+            file_path = ".kiro/steering/agent-nexus.md"
+            content = f"---\ninclusion: auto\n---\n\n# AgentNexus\n\n{workflow_content}"
+        elif client_type == "claude":
+            file_path = "CLAUDE.md"
+            content = f"# AgentNexus\n\n{workflow_content}"
+        elif client_type == "codex":
+            file_path = "AGENTS.md"
+            content = f"# AgentNexus\n\n{workflow_content}"
+        elif client_type == "cursor":
+            file_path = ".cursor/rules/agent-nexus.mdc"
+            content = f"---\nalwaysApply: true\n---\n\n# AgentNexus\n\n{workflow_content}"
+        else:
+            # fallback to kiro
+            file_path = ".kiro/steering/agent-nexus.md"
+            content = f"---\ninclusion: auto\n---\n\n# AgentNexus\n\n{workflow_content}"
+
+        return {
+            "file_path": file_path,
+            "file_content": content,
+            "instruction": f"Write file_content to {file_path}.",
+        }
+
+    # ------------------------------------------------------------------
+    # Admin tool: get_project_id_by_name
+    # ------------------------------------------------------------------
+
+    async def get_project_id_by_name(
+        self, name: str, project_space_id: str
+    ) -> dict:
+        """Look up a sub-project's project_id by its name within a space."""
+        from agent_nexus.models.entities import SubProject
+        subproject = (
+            self._c.db.query(SubProject)
+            .filter(
+                SubProject.name == name,
+                SubProject.project_space_id == project_space_id,
+            )
+            .first()
+        )
+        if subproject is None:
+            return {"error": "PROJECT_NOT_FOUND", "message": f"No project named '{name}' in this space."}
+        return {
+            "project_id": subproject.id,
+            "name": subproject.name,
+            "type": subproject.type,
+            "stage": subproject.stage,
+        }
+
+    # ------------------------------------------------------------------
+    # Admin tool: add_subscription
+    # ------------------------------------------------------------------
+
+    async def add_subscription(
+        self,
+        subscriber_project_id: str,
+        project_space_id: str,
+        target_doc_id: str | None = None,
+        target_doc_type: str | None = None,
+    ) -> dict:
+        """
+        Add a subscription rule for a sub-project.
+        Provide either target_doc_id (exact doc) or target_doc_type (all docs of that type).
+        """
+        try:
+            rule = self._c.subscription_service.add_rule(
+                subscriber_project_id=subscriber_project_id,
+                project_space_id=project_space_id,
+                target_doc_id=target_doc_id,
+                target_doc_type=target_doc_type,
+            )
+            return {
+                "rule_id": rule.id,
+                "subscriber_project_id": rule.subscriber_project_id,
+                "target_doc_id": rule.target_doc_id,
+                "target_doc_type": rule.target_doc_type,
+            }
+        except AgentNexusError as exc:
+            return self._error_dict(exc)
+
+    # ------------------------------------------------------------------
+    # Admin tool: create_space
+    # ------------------------------------------------------------------
+
+    async def create_space(self, name: str) -> dict:
+        """Create a new Project Space and return its space_id."""
+        import uuid
+        from datetime import datetime, timezone
+        from agent_nexus.models.entities import ProjectSpace
+
+        space = ProjectSpace(
+            id=str(uuid.uuid4()),
+            name=name,
+            status="active",
+            created_at=datetime.now(timezone.utc),
+        )
+        self._c.db.add(space)
+        self._c.db.flush()
+        return {
+            "space_id": space.id,
+            "name": space.name,
+            "status": space.status,
+        }
+
+    # ------------------------------------------------------------------
+    # Admin tool: register_project
+    # ------------------------------------------------------------------
+
+    async def register_project(
+        self,
+        name: str,
+        type: str,
+        project_space_id: str,
+        stage: str = "design",
+    ) -> dict:
+        """
+        Register a new sub-project in the given project space.
+
+        type: development | testing | ops | infra | ...
+        stage: design | development | testing | deployment | upgrade
+        """
+        try:
+            subproject = self._c.project_service.register(
+                name=name,
+                type=type,
+                project_space_id=project_space_id,
+                stage=stage,
+            )
+            self._c.db.flush()
+            return {
+                "project_id": subproject.id,
+                "name": subproject.name,
+                "type": subproject.type,
+                "stage": subproject.stage,
+                "project_space_id": subproject.project_space_id,
+            }
+        except AgentNexusError as exc:
+            return self._error_dict(exc)
+
+    # ------------------------------------------------------------------
+    # Admin tool: list_projects
+    # ------------------------------------------------------------------
+
+    async def list_projects(self, project_space_id: str) -> list[dict]:
+        """List all sub-projects in the given project space."""
+        subprojects = self._c.project_service.list_subprojects(project_space_id)
+        return [
+            {
+                "project_id": sp.id,
+                "name": sp.name,
+                "type": sp.type,
+                "stage": sp.stage,
+                "stage_updated_at": sp.stage_updated_at.isoformat(),
+                "created_at": sp.created_at.isoformat(),
+            }
+            for sp in subprojects
+        ]
+
+    # ------------------------------------------------------------------
+    # Admin tool: publish_draft
+    # ------------------------------------------------------------------
+
+    async def publish_draft(
+        self,
+        project_id: str,
+        doc_id: str,
+        version: int,
+    ) -> dict:
+        """
+        Confirm a draft document version, publishing it and triggering notifications.
+
+        Raises INVALID_STATUS_TRANSITION if version doesn't exist or is already published.
+        """
+        try:
+            subproject = self._validate_project(project_id)
+            result = self._c.document_service.publish_draft(
+                doc_id=doc_id,
+                version=version,
+                project_space_id=subproject.project_space_id,
+            )
+            return result
+        except AgentNexusError as exc:
+            return self._error_dict(exc)
+
+    # ------------------------------------------------------------------
+    # Admin tool: list_documents
+    # ------------------------------------------------------------------
+
+    async def list_documents(self, project_id: str) -> list[dict]:
+        """List all documents belonging to the given sub-project."""
+        try:
+            subproject = self._validate_project(project_id)
+            from agent_nexus.models.entities import Document
+            docs = (
+                self._c.db.query(Document)
+                .filter(
+                    Document.subproject_id == project_id,
+                    Document.project_space_id == subproject.project_space_id,
+                )
+                .all()
+            )
+            return [
+                {
+                    "doc_id": d.id,
+                    "doc_type": d.doc_type,
+                    "latest_version": d.latest_version,
+                    "doc_variant": d.doc_variant,
+                    "created_at": d.created_at.isoformat(),
+                }
+                for d in docs
+            ]
+        except AgentNexusError as exc:
+            return [self._error_dict(exc)]
+
+    # ------------------------------------------------------------------
+    # Tool: get_my_updates_with_context  (read — one-call update check)
+    # ------------------------------------------------------------------
+
+    async def get_my_updates_with_context(self, project_id: str) -> list[dict]:
+        """
+        Return all unread notifications with diff and optionally full document content.
+
+        Each item contains:
+          - update_id: notification id (use with ack_update when done)
+          - doc_id: which document changed
+          - doc_type: type of document
+          - new_version: the new version number
+          - diff: unified diff showing what changed (+ added, - removed)
+          - latest_content: full content of the latest version (always included;
+            use get_document if you need a specific older version)
+
+        After processing each update, call ack_update(project_id, update_id).
+        """
+        try:
+            subproject = self._validate_project(project_id)
+            notifications = self._c.notification_service.get_unread(
+                project_id=project_id,
+                project_space_id=subproject.project_space_id,
+            )
+
+            if not notifications:
+                return []
+
+            from agent_nexus.models.entities import Document, DocumentVersion, DocumentVersionContent
+            import difflib
+
+            results = []
+            for n in notifications:
+                item: dict = {
+                    "update_id": n.id,
+                    "doc_id": n.document_id,
+                    "new_version": n.version,
+                    "diff": None,
+                    "latest_content": None,
+                }
+
+                # Get doc type
+                doc = (
+                    self._c.db.query(Document)
+                    .filter(Document.id == n.document_id)
+                    .first()
+                )
+                item["doc_type"] = doc.doc_type if doc else "unknown"
+
+                # Get latest content
+                latest_ver = (
+                    self._c.db.query(DocumentVersion)
+                    .filter(
+                        DocumentVersion.document_id == n.document_id,
+                        DocumentVersion.version == n.version,
+                    )
+                    .first()
+                )
+                if latest_ver:
+                    content_rec = (
+                        self._c.db.query(DocumentVersionContent)
+                        .filter(DocumentVersionContent.version_id == latest_ver.id)
+                        .first()
+                    )
+                    item["latest_content"] = content_rec.content if content_rec else ""
+
+                # Get previous version content for diff
+                if n.version > 1:
+                    prev_ver = (
+                        self._c.db.query(DocumentVersion)
+                        .filter(
+                            DocumentVersion.document_id == n.document_id,
+                            DocumentVersion.version == n.version - 1,
+                        )
+                        .first()
+                    )
+                    if prev_ver:
+                        prev_content_rec = (
+                            self._c.db.query(DocumentVersionContent)
+                            .filter(DocumentVersionContent.version_id == prev_ver.id)
+                            .first()
+                        )
+                        if prev_content_rec and item["latest_content"]:
+                            old_lines = prev_content_rec.content.splitlines(keepends=True)
+                            new_lines = item["latest_content"].splitlines(keepends=True)
+                            diff_lines = list(difflib.unified_diff(
+                                old_lines, new_lines,
+                                fromfile=f"v{n.version - 1}",
+                                tofile=f"v{n.version}",
+                                lineterm="",
+                            ))
+                            item["diff"] = "".join(diff_lines) if diff_lines else "（内容无变化）"
+                        else:
+                            item["diff"] = "（旧版本内容已归档，无法生成 diff）"
+                else:
+                    item["diff"] = "（首次发布，无历史版本）"
+
+                results.append(item)
+
+            return results
+        except AgentNexusError as exc:
+            return [self._error_dict(exc)]
+
+    # ------------------------------------------------------------------
+    # Tool: get_config  (read)
+    # ------------------------------------------------------------------
+
+    async def get_config(self, project_id: str, stage: str) -> dict:
+        """
+        Return the config document for the given project_id and stage.
+
+        The doc_id is constructed as {project_id}/config/{stage}.
+
+        Requirements 8.1, 8.4, 6.2, 6.3
+        """
+        try:
+            subproject = self._validate_project(project_id)
+
+            if stage not in VALID_CONFIG_VARIANTS:
+                raise AgentNexusError(
+                    error_code="INVALID_STAGE",
+                    message=f"stage '{stage}' is not valid. Must be one of: {sorted(VALID_CONFIG_VARIANTS)}.",
+                    details={"valid_variants": sorted(VALID_CONFIG_VARIANTS)},
+                )
+
+            doc_id = f"{project_id}/config/{stage}"
+            result = self._c.document_service.get(
+                doc_id=doc_id,
+                project_space_id=subproject.project_space_id,
+            )
+            return result.model_dump()
+        except AgentNexusError as exc:
+            return self._error_dict(exc)
+
+    # ------------------------------------------------------------------
+    # Tool: search_documents  (read — FTS5 full-text search)
+    # ------------------------------------------------------------------
+
+    async def search_documents(
+        self,
+        project_space_id: str,
+        query: str,
+        doc_type: str | None = None,
+        subproject_id: str | None = None,
+        limit: int = 10,
+    ) -> list[dict]:
+        """
+        Full-text search across all published documents in a project space.
+
+        Supports FTS5 query syntax:
+          - Keywords:      authentication
+          - Phrases:       "user authentication"
+          - Prefix:        auth*
+          - Boolean:       authentication NOT oauth  (use NOT, not AND NOT)
+
+        Results are ranked by BM25 relevance (most relevant first).
+        Each result includes a snippet with matched terms highlighted using >>> / <<<.
+
+        Requirements 2.1-2.7
+        """
+        try:
+            # Cap limit to 50
+            limit = min(limit, 50)
+
+            from agent_nexus.search.fts import search as fts_search
+            results = fts_search(
+                db=self._c.db,
+                project_space_id=project_space_id,
+                query=query,
+                doc_type=doc_type,
+                subproject_id=subproject_id,
+                limit=limit,
+            )
+
+            # Enrich each result with latest_version from the documents table
+            from agent_nexus.models.entities import Document
+            enriched = []
+            for r in results:
+                doc = (
+                    self._c.db.query(Document)
+                    .filter(Document.id == r["doc_id"])
+                    .first()
+                )
+                enriched.append({
+                    "doc_id": r["doc_id"],
+                    "subproject_id": r["subproject_id"],
+                    "doc_type": r["doc_type"],
+                    "latest_version": doc.latest_version if doc else None,
+                    "snippet": r["snippet"],
+                    "rank": r["rank"],
+                })
+            return enriched
+
+        except AgentNexusError as exc:
+            return [self._error_dict(exc)]
+
+    # ------------------------------------------------------------------
+    # Planner tools (read-only AI inference + cross-project overview)
+    # ------------------------------------------------------------------
+
+    async def planner_chat(
+        self,
+        space_id: str,
+        question: str,
+        doc_ids: list[str] | None = None,
+    ) -> dict:
+        """
+        Ask the Planner a question with cross-service document context (read-only).
+
+        Delegates to PlannerService.chat(). Returns {"answer": <str>} on
+        success, or an error dict when the LLM is not configured or a
+        AgentNexusError occurs.
+
+        Requirements 2.1, 4.1
+        """
+        try:
+            result = await self._c.planner_service.chat(
+                space_id=space_id,
+                question=question,
+                doc_ids=doc_ids,
+            )
+            # Normalise: str answer → {"answer": str}; dict (error etc.) passes through
+            if isinstance(result, str):
+                return {"answer": result}
+            return result
+        except AgentNexusError as exc:
+            return self._error_dict(exc)
+
+    async def planner_plan(self, space_id: str, description: str) -> dict:
+        """
+        Propose a service decomposition (SubProjects + deps + draft docs).
+
+        Returns a proposal dict only; does NOT persist anything to the database.
+        The caller decides whether to act on the proposal.
+
+        Delegates to PlannerService.plan().
+
+        Requirements 2.2, 4.1
+        """
+        try:
+            return await self._c.planner_service.plan(
+                space_id=space_id,
+                description=description,
+            )
+        except AgentNexusError as exc:
+            return self._error_dict(exc)
+
+    async def planner_overview(self, space_id: str | None = None) -> dict:
+        """
+        Cross-subproject overview. Read-only global view.
+
+        space_id is optional: if omitted, returns ALL spaces and their projects.
+        space_id may be a UUID or a space name (human-readable).
+        """
+        try:
+            if space_id:
+                resolved = self._c.planner_service._resolve_space_id(space_id)
+                projects_raw = self._c.planner_service.list_projects(resolved)
+                projects_out = []
+                for proj in projects_raw:
+                    pid = proj["project_id"]
+                    docs = await self.list_documents(pid)
+                    projects_out.append({
+                        "project_id": pid,
+                        "name": proj["name"],
+                        "type": proj["type"],
+                        "stage": proj["stage"],
+                        "documents": docs,
+                    })
+                return {"space_id": resolved, "projects": projects_out}
+            else:
+                return self._c.planner_service.global_overview()
+        except AgentNexusError as exc:
+            return self._error_dict(exc)
+
+    async def planner_delete_project(self, project_id: str, space_id: str) -> dict:
+        """Delete a sub-project. space_id may be UUID or name. Documents retained."""
+        try:
+            return self._c.planner_service.delete_project(project_id, space_id)
+        except AgentNexusError as exc:
+            return self._error_dict(exc)

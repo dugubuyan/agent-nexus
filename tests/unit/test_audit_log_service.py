@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from doc_exchange.services.audit_log_service import AuditLogService
+from agent_nexus.services.audit_log_service import AuditLogService
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +124,7 @@ def test_query_by_start_time_excludes_earlier_records(db_session, default_space)
     svc = _make_service(db_session)
 
     # Manually create entries with controlled timestamps
-    from doc_exchange.models.entities import AuditLog
+    from agent_nexus.models.entities import AuditLog
     import uuid
 
     t1 = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
@@ -156,7 +156,7 @@ def test_query_by_start_time_excludes_earlier_records(db_session, default_space)
 def test_query_by_end_time_excludes_later_records(db_session, default_space):
     svc = _make_service(db_session)
 
-    from doc_exchange.models.entities import AuditLog
+    from agent_nexus.models.entities import AuditLog
     import uuid
 
     t1 = datetime(2024, 2, 1, 8, 0, 0, tzinfo=timezone.utc)
@@ -186,7 +186,7 @@ def test_query_by_end_time_excludes_later_records(db_session, default_space):
 def test_query_by_time_range_combined(db_session, default_space):
     svc = _make_service(db_session)
 
-    from doc_exchange.models.entities import AuditLog
+    from agent_nexus.models.entities import AuditLog
     import uuid
 
     times = [
@@ -224,7 +224,7 @@ def test_query_by_time_range_combined(db_session, default_space):
 def test_query_combined_operator_and_time_range(db_session, default_space):
     svc = _make_service(db_session)
 
-    from doc_exchange.models.entities import AuditLog
+    from agent_nexus.models.entities import AuditLog
     import uuid
 
     t_early = datetime(2024, 4, 1, 8, 0, 0, tzinfo=timezone.utc)

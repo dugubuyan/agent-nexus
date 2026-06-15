@@ -5,8 +5,8 @@ Unit tests for TaskService (Requirements 7.1 – 7.6).
 import pytest
 from sqlalchemy.orm import Session
 
-from doc_exchange.analyzer.base import AffectedProject, AnalysisResult, TaskTemplate
-from doc_exchange.services import DocExchangeError, TaskService
+from agent_nexus.analyzer.base import AffectedProject, AnalysisResult, TaskTemplate
+from agent_nexus.services import AgentNexusError, TaskService
 
 
 def make_svc(db_session: Session) -> TaskService:
@@ -148,7 +148,7 @@ def test_claim_nonexistent_task_raises_task_not_found(db_session, default_space)
     """claim() raises TASK_NOT_FOUND for unknown task_id (Req 7.5)."""
     svc = make_svc(db_session)
 
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.claim("no-such-task", "proj-a", default_space.id)
 
     assert exc_info.value.error_code == "TASK_NOT_FOUND"
@@ -176,7 +176,7 @@ def test_complete_nonexistent_task_raises_task_not_found(db_session, default_spa
     """complete() raises TASK_NOT_FOUND for unknown task_id (Req 7.5)."""
     svc = make_svc(db_session)
 
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.complete("no-such-task", "proj-a", default_space.id)
 
     assert exc_info.value.error_code == "TASK_NOT_FOUND"

@@ -1,4 +1,4 @@
-# Feature: doc-exchange-center, Property 4-10: DocumentService property tests
+# Feature: agent-nexus, Property 4-10: DocumentService property tests
 """
 Property-based tests for DocumentService.
 
@@ -16,11 +16,11 @@ from hypothesis import strategies as st
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-from doc_exchange.models import Base, ProjectSpace
-from doc_exchange.services.audit_log_service import AuditLogService
-from doc_exchange.services.document_service import DocumentService, VALID_DOC_TYPES, VALID_CONFIG_VARIANTS
-from doc_exchange.services.errors import DocExchangeError
-from doc_exchange.services.schemas import PushRequest
+from agent_nexus.models import Base, ProjectSpace
+from agent_nexus.services.audit_log_service import AuditLogService
+from agent_nexus.services.document_service import DocumentService, VALID_DOC_TYPES, VALID_CONFIG_VARIANTS
+from agent_nexus.services.errors import AgentNexusError
+from agent_nexus.services.schemas import PushRequest
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +141,7 @@ invalid_config_stage = st.text(min_size=1, max_size=20).filter(
 # Property 4: 文档推送内容保真 Round-Trip
 # ---------------------------------------------------------------------------
 
-# Feature: doc-exchange-center, Property 4: 文档推送内容保真 Round-Trip
+# Feature: agent-nexus, Property 4: 文档推送内容保真 Round-Trip
 
 
 @settings(max_examples=100)
@@ -193,7 +193,7 @@ def test_prop_push_content_round_trip(subproject_id, doc_type, content):
 # Property 5: 版本号单调递增
 # ---------------------------------------------------------------------------
 
-# Feature: doc-exchange-center, Property 5: 版本号单调递增
+# Feature: agent-nexus, Property 5: 版本号单调递增
 
 
 @settings(max_examples=100)
@@ -242,7 +242,7 @@ def test_prop_version_monotonically_increasing(subproject_id, doc_type, contents
 # Property 6: 相同内容推送被拒绝
 # ---------------------------------------------------------------------------
 
-# Feature: doc-exchange-center, Property 6: 相同内容推送被拒绝
+# Feature: agent-nexus, Property 6: 相同内容推送被拒绝
 
 
 @settings(max_examples=100)
@@ -273,7 +273,7 @@ def test_prop_duplicate_content_rejected(subproject_id, doc_type, content):
             version_before = result.version
 
             # Second push with identical content must be rejected
-            with pytest.raises(DocExchangeError) as exc_info:
+            with pytest.raises(AgentNexusError) as exc_info:
                 _push(svc, doc_id, content, project_space_id=space_id)
 
             assert exc_info.value.error_code == "CONTENT_UNCHANGED", (
@@ -294,7 +294,7 @@ def test_prop_duplicate_content_rejected(subproject_id, doc_type, content):
 # Property 7: 非法 doc_id 返回格式错误
 # ---------------------------------------------------------------------------
 
-# Feature: doc-exchange-center, Property 7: 非法 doc_id 返回格式错误
+# Feature: agent-nexus, Property 7: 非法 doc_id 返回格式错误
 
 
 @settings(max_examples=100)
@@ -315,7 +315,7 @@ def test_prop_invalid_doc_id_rejected(doc_id):
             session, space_id = _make_session_and_space(engine)
             svc = _make_service(session, docs_root)
 
-            with pytest.raises(DocExchangeError) as exc_info:
+            with pytest.raises(AgentNexusError) as exc_info:
                 _push(svc, doc_id, "some content", project_space_id=space_id)
 
             err = exc_info.value
@@ -341,7 +341,7 @@ def test_prop_invalid_doc_id_rejected(doc_id):
 # Property 8: config 类型必须含 stage 字段
 # ---------------------------------------------------------------------------
 
-# Feature: doc-exchange-center, Property 8: config 类型必须含 stage 字段
+# Feature: agent-nexus, Property 8: config 类型必须含 stage 字段
 
 
 @settings(max_examples=100)
@@ -372,7 +372,7 @@ def test_prop_config_missing_or_invalid_stage_rejected(subproject_id, content, b
                 # invalid variant in doc_id
                 doc_id = f"{subproject_id}/config/{bad_stage}"
 
-            with pytest.raises(DocExchangeError) as exc_info:
+            with pytest.raises(AgentNexusError) as exc_info:
                 _push(svc, doc_id, content, project_space_id=space_id)
 
             err = exc_info.value
@@ -415,7 +415,7 @@ def test_prop_config_valid_stage_succeeds(subproject_id, content, stage):
 # Property 9: 版本元数据完整性
 # ---------------------------------------------------------------------------
 
-# Feature: doc-exchange-center, Property 9: 版本元数据完整性
+# Feature: agent-nexus, Property 9: 版本元数据完整性
 
 
 @settings(max_examples=100)
@@ -473,7 +473,7 @@ def test_prop_version_metadata_complete(subproject_id, doc_type, content, pushed
 # Property 10: 历史版本查询 Round-Trip
 # ---------------------------------------------------------------------------
 
-# Feature: doc-exchange-center, Property 10: 历史版本查询 Round-Trip
+# Feature: agent-nexus, Property 10: 历史版本查询 Round-Trip
 
 
 @settings(max_examples=100)
@@ -530,7 +530,7 @@ def test_prop_historical_version_round_trip(subproject_id, doc_type, contents):
 # Property 11: 版本保留策略不变量
 # ---------------------------------------------------------------------------
 
-# Feature: doc-exchange-center, Property 11: 版本保留策略不变量
+# Feature: agent-nexus, Property 11: 版本保留策略不变量
 
 
 @settings(max_examples=50)
@@ -559,8 +559,8 @@ def test_prop_version_retention_invariants(
     import uuid
     from datetime import timedelta
 
-    from doc_exchange.models.entities import Document, DocumentVersion, DocumentVersionContent
-    from doc_exchange.services.version_retention_service import VersionRetentionService
+    from agent_nexus.models.entities import Document, DocumentVersion, DocumentVersionContent
+    from agent_nexus.services.version_retention_service import VersionRetentionService
 
     engine = _make_engine()
     with tempfile.TemporaryDirectory() as docs_root:

@@ -9,9 +9,9 @@ from datetime import datetime, timezone
 
 import pytest
 
-from doc_exchange.mcp.dependencies import ServiceContainer
-from doc_exchange.mcp.tools import ToolHandler
-from doc_exchange.models.entities import Notification, ProjectSpace, SubProject, Task
+from agent_nexus.mcp.dependencies import ServiceContainer
+from agent_nexus.mcp.tools import ToolHandler
+from agent_nexus.models.entities import Notification, ProjectSpace, SubProject, Task
 
 
 # ---------------------------------------------------------------------------

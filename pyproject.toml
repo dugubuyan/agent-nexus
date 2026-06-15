@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "doc-exchange-center"
+name = "agent-nexus"
 version = "0.1.0"
-description = "Document Exchange Center - a team-level shared service for multi-subproject document management"
+description = "AgentNexus - a team-level shared service for multi-subproject document management"
 requires-python = ">=3.11"
 dependencies = [
     "mcp[cli]>=1.0.0",
@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-doc-exchange-center = "doc_exchange.main:main"
+agent-nexus = "agent_nexus.main:main"
 
 [project.optional-dependencies]
 dev = [

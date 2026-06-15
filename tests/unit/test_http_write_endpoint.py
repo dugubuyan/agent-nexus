@@ -14,12 +14,12 @@ from starlette.applications import Starlette
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from doc_exchange.mcp.dependencies import ServiceContainer
-from doc_exchange.mcp.tools import ToolHandler
-from doc_exchange.models import Base
-from doc_exchange.models.entities import Document, DocumentVersion, ProjectSpace, SubProject
-from doc_exchange.search.fts import ensure_fts_table, search as fts_search
-from doc_exchange.web.routes import register_web_routes
+from agent_nexus.mcp.dependencies import ServiceContainer
+from agent_nexus.mcp.tools import ToolHandler
+from agent_nexus.models import Base
+from agent_nexus.models.entities import Document, DocumentVersion, ProjectSpace, SubProject
+from agent_nexus.search.fts import ensure_fts_table, search as fts_search
+from agent_nexus.web.routes import register_web_routes
 
 
 class _NoCloseSession:

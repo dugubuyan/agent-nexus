@@ -2,13 +2,13 @@
 
 This guide defines how an AI agent should determine which documents to read,
 based on the current **intent** and **project stage**. It is IDE-agnostic and
-applies to any agent integrated with doc-exchange.
+applies to any agent integrated with agent-nexus.
 
 ---
 
 ## 1. Document Type Reference
 
-All documents in doc-exchange use standardized `doc_type` and optional `doc_variant` values.
+All documents in agent-nexus use standardized `doc_type` and optional `doc_variant` values.
 The full identifier is `{doc_type}` or `{doc_type}/{variant}`.
 
 | doc_type | variant | Description | Typical owner |

@@ -5,7 +5,7 @@ Unit tests for NotificationService (Requirements 5.1 – 5.5).
 import pytest
 from sqlalchemy.orm import Session
 
-from doc_exchange.services import DocExchangeError, NotificationService
+from agent_nexus.services import AgentNexusError, NotificationService
 
 
 def make_svc(db_session: Session) -> NotificationService:
@@ -125,7 +125,7 @@ def test_ack_nonexistent_update_id_raises_notification_not_found(db_session, def
     """ack() raises NOTIFICATION_NOT_FOUND for unknown update_id (Req 5.4)."""
     svc = make_svc(db_session)
 
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.ack("no-such-id", "proj-a", default_space.id)
 
     assert exc_info.value.error_code == "NOTIFICATION_NOT_FOUND"

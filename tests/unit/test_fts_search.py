@@ -17,24 +17,24 @@ import pytest
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker
 
-from doc_exchange.models import Base
-from doc_exchange.models.entities import (
+from agent_nexus.models import Base
+from agent_nexus.models.entities import (
     Document,
     DocumentVersion,
     DocumentVersionContent,
     ProjectSpace,
     SubProject,
 )
-from doc_exchange.search.fts import (
+from agent_nexus.search.fts import (
     ensure_fts_table,
     rebuild_fts_index_if_empty,
     search,
     upsert_doc,
 )
-from doc_exchange.services.audit_log_service import AuditLogService
-from doc_exchange.services.document_service import DocumentService
-from doc_exchange.services.errors import DocExchangeError
-from doc_exchange.services.schemas import PushRequest
+from agent_nexus.services.audit_log_service import AuditLogService
+from agent_nexus.services.document_service import DocumentService
+from agent_nexus.services.errors import AgentNexusError
+from agent_nexus.services.schemas import PushRequest
 
 
 # ---------------------------------------------------------------------------
@@ -391,7 +391,7 @@ def test_search_no_match_returns_empty(fts_session, space, subproject):
 
 
 def test_search_invalid_query_raises_error(fts_session, space):
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         search(fts_session, space.id, "AND AND AND")
     assert exc_info.value.error_code == "INVALID_QUERY"
 

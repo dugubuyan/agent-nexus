@@ -1,5 +1,5 @@
 """
-Shared test fixtures for the Doc Exchange Center test suite.
+Shared test fixtures for the AgentNexus test suite.
 
 Provides:
 - in-memory SQLite engine and session (for fast unit/property tests)
@@ -16,7 +16,7 @@ import pytest_asyncio
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
-from doc_exchange.models import Base, ProjectSpace
+from agent_nexus.models import Base, ProjectSpace
 
 
 # ---------------------------------------------------------------------------
@@ -41,7 +41,7 @@ def engine():
     Base.metadata.create_all(eng)
 
     # Create FTS5 virtual table (not managed by SQLAlchemy ORM)
-    from doc_exchange.search.fts import ensure_fts_table
+    from agent_nexus.search.fts import ensure_fts_table
     ensure_fts_table(eng)
 
     yield eng

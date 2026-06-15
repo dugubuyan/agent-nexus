@@ -23,10 +23,10 @@ import os
 
 import pytest
 
-from doc_exchange.services.audit_log_service import AuditLogService
-from doc_exchange.services.document_service import DocumentService
-from doc_exchange.services.errors import DocExchangeError
-from doc_exchange.services.schemas import PushRequest
+from agent_nexus.services.audit_log_service import AuditLogService
+from agent_nexus.services.document_service import DocumentService
+from agent_nexus.services.errors import AgentNexusError
+from agent_nexus.services.schemas import PushRequest
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +76,7 @@ def test_push_increments_version_on_second_push(db_session, default_space, tmp_d
 def test_push_same_content_returns_content_unchanged(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
     _push(svc, "sub1/api", "# API", project_space_id=default_space.id)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         _push(svc, "sub1/api", "# API", project_space_id=default_space.id)
     assert exc_info.value.error_code == "CONTENT_UNCHANGED"
 
@@ -88,28 +88,28 @@ def test_push_same_content_returns_content_unchanged(db_session, default_space, 
 
 def test_push_empty_doc_id_returns_invalid_doc_id(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         _push(svc, "", "content", project_space_id=default_space.id)
     assert exc_info.value.error_code == "INVALID_DOC_ID"
 
 
 def test_push_invalid_doc_type_returns_invalid_doc_id(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         _push(svc, "sub1/unknown_type", "content", project_space_id=default_space.id)
     assert exc_info.value.error_code == "INVALID_DOC_ID"
 
 
 def test_push_too_many_parts_returns_invalid_doc_id(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         _push(svc, "sub1/requirement/extra/part", "content", project_space_id=default_space.id)
     assert exc_info.value.error_code == "INVALID_DOC_ID"
 
 
 def test_push_single_part_returns_invalid_doc_id(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         _push(svc, "requirement", "content", project_space_id=default_space.id)
     assert exc_info.value.error_code == "INVALID_DOC_ID"
 
@@ -128,14 +128,14 @@ def test_push_non_config_with_variant_succeeds(db_session, default_space, tmp_do
 
 def test_push_config_without_variant_returns_invalid_doc_id(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         _push(svc, "sub1/config", "content", project_space_id=default_space.id, metadata={})
     assert exc_info.value.error_code == "INVALID_DOC_ID"
 
 
 def test_push_config_with_invalid_variant_returns_invalid_doc_id(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         _push(svc, "sub1/config/staging", "content", project_space_id=default_space.id)
     assert exc_info.value.error_code == "INVALID_DOC_ID"
 
@@ -248,7 +248,7 @@ def test_get_returns_correct_metadata(db_session, default_space, tmp_docs_root):
 
 def test_get_nonexistent_doc_id_returns_doc_not_found(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.get("sub1/requirement", default_space.id)
     assert exc_info.value.error_code == "DOC_NOT_FOUND"
 
@@ -257,7 +257,7 @@ def test_get_nonexistent_version_returns_version_not_found(db_session, default_s
     svc = _make_service(db_session, tmp_docs_root)
     _push(svc, "sub1/api", "# v1", project_space_id=default_space.id)
 
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.get("sub1/api", default_space.id, version=99)
     assert exc_info.value.error_code == "VERSION_NOT_FOUND"
 
@@ -280,7 +280,7 @@ def test_list_versions_returns_all_versions(db_session, default_space, tmp_docs_
 
 def test_list_versions_nonexistent_doc_returns_doc_not_found(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    with pytest.raises(DocExchangeError) as exc_info:
+    with pytest.raises(AgentNexusError) as exc_info:
         svc.list_versions("sub1/requirement", default_space.id)
     assert exc_info.value.error_code == "DOC_NOT_FOUND"
 
@@ -345,8 +345,8 @@ def test_concurrent_pushes_produce_unique_monotonic_versions(engine, tmp_docs_ro
     import tempfile
     from sqlalchemy import create_engine as _create_engine, event as sa_event
     from sqlalchemy.orm import sessionmaker
-    from doc_exchange.models import Base
-    from doc_exchange.models.entities import ProjectSpace, DocumentVersion, Document
+    from agent_nexus.models import Base
+    from agent_nexus.models.entities import ProjectSpace, DocumentVersion, Document
     from datetime import datetime, timezone
     import uuid
 
@@ -372,7 +372,7 @@ def test_concurrent_pushes_produce_unique_monotonic_versions(engine, tmp_docs_ro
         Base.metadata.create_all(conc_engine)
 
         # Create FTS5 table in the temporary test database
-        from doc_exchange.search.fts import ensure_fts_table as _ensure_fts
+        from agent_nexus.search.fts import ensure_fts_table as _ensure_fts
         _ensure_fts(conc_engine)
 
         SessionFactory = sessionmaker(bind=conc_engine)
@@ -472,8 +472,8 @@ def test_concurrent_pushes_to_different_docs_do_not_interfere(tmp_docs_root):
     import tempfile
     from sqlalchemy import create_engine as _create_engine, event as sa_event
     from sqlalchemy.orm import sessionmaker
-    from doc_exchange.models import Base
-    from doc_exchange.models.entities import ProjectSpace
+    from agent_nexus.models import Base
+    from agent_nexus.models.entities import ProjectSpace
     from datetime import datetime, timezone
     import uuid
 
@@ -498,7 +498,7 @@ def test_concurrent_pushes_to_different_docs_do_not_interfere(tmp_docs_root):
         Base.metadata.create_all(conc_engine)
 
         # Create FTS5 table in the temporary test database
-        from doc_exchange.search.fts import ensure_fts_table as _ensure_fts2
+        from agent_nexus.search.fts import ensure_fts_table as _ensure_fts2
         _ensure_fts2(conc_engine)
 
         SessionFactory = sessionmaker(bind=conc_engine)

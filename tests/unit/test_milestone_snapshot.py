@@ -10,17 +10,17 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy.orm import Session
 
-from doc_exchange.models.entities import (
+from agent_nexus.models.entities import (
     AuditLog,
     Document,
     DocumentVersion,
     DocumentVersionContent,
     Task,
 )
-from doc_exchange.services.audit_log_service import AuditLogService
-from doc_exchange.services.document_service import DocumentService
-from doc_exchange.services.project_service import ProjectService
-from doc_exchange.services.task_service import TaskService
+from agent_nexus.services.audit_log_service import AuditLogService
+from agent_nexus.services.document_service import DocumentService
+from agent_nexus.services.project_service import ProjectService
+from agent_nexus.services.task_service import TaskService
 
 
 # ---------------------------------------------------------------------------
