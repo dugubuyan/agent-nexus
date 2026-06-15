@@ -536,6 +536,22 @@ Examples:
 - `{{project_id}}/design`
 - `{{project_id}}/config/dev`
 
+## Cross-Service Document Ownership
+
+Deployment, ops/runbook, and global ADR documents serve the whole Space and do
+NOT belong to any single business service. Before pushing such a document, find
+its owning coordination unit — never dump it into your own service's project_id:
+
+1. Call `list_projects(project_space_id)` (or `get_project_id_by_name`) to check
+   whether a coordination unit already exists (e.g. `platform`, `infra`, `ops`).
+2. If it exists → push the document under THAT project_id, e.g.
+   `push_document(project_id=<platform_id>, doc_id="<platform_id>/deployment/<name>", ...)`.
+   Services that depend on it subscribe via `add_subscription(target_doc_type="deployment")`.
+3. If no such unit exists but a real team/role owns this knowledge → first
+   `register_project(name="platform", type="infra", project_space_id=..., stage="deployment")`,
+   then push under the new project_id.
+4. Do NOT place cross-service documents under a business service's own project_id.
+
 ## Update Handling
 
 After completing significant changes, push updated documents:
