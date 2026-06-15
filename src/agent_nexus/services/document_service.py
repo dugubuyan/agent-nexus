@@ -324,6 +324,7 @@ class DocumentService:
             .filter(
                 Document.id == doc_id,
                 Document.project_space_id == project_space_id,
+                Document.status == "active",
             )
             .first()
         )
@@ -426,6 +427,7 @@ class DocumentService:
             .filter(
                 Document.id == doc_id,
                 Document.project_space_id == project_space_id,
+                Document.status == "active",
             )
             .first()
         )
@@ -709,6 +711,86 @@ class DocumentService:
 
         self._db.flush()
         return {"snapshots_created": snapshots_created, "skipped": skipped}
+
+    # ------------------------------------------------------------------
+    # delete()
+    # ------------------------------------------------------------------
+
+    def delete(self, doc_id: str, project_id: str, project_space_id: str) -> dict:
+        """
+        Soft-delete a document owned by project_id.
+
+        - Sets Document.status = 'deleted', records deleted_at timestamp.
+        - Removes the doc from the FTS index so it no longer appears in searches.
+        - Sends a 'doc_deleted' notification to all current subscribers.
+        - Writes an audit log entry.
+        - Version history is fully preserved (git-style: deletion is a record,
+          not an erasure).
+
+        Raises:
+          UNAUTHORIZED    — doc_id does not belong to project_id
+          DOC_NOT_FOUND   — document does not exist (or already deleted)
+        """
+        now = datetime.now(timezone.utc)
+
+        document = (
+            self._db.query(Document)
+            .filter(
+                Document.id == doc_id,
+                Document.project_space_id == project_space_id,
+                Document.status == "active",
+            )
+            .first()
+        )
+
+        if document is None:
+            raise AgentNexusError(
+                error_code="DOC_NOT_FOUND",
+                message=f"Document '{doc_id}' does not exist or is already deleted.",
+                details={"doc_id": doc_id},
+            )
+
+        if document.subproject_id != project_id:
+            raise AgentNexusError(
+                error_code="UNAUTHORIZED",
+                message=f"project_id '{project_id}' does not own document '{doc_id}'.",
+                details={"doc_id": doc_id, "owner": document.subproject_id},
+            )
+
+        # Mark as deleted
+        document.status = "deleted"
+        document.deleted_at = now
+        self._db.flush()
+
+        # Remove from FTS index
+        from agent_nexus.search.fts import remove_doc
+        remove_doc(db=self._db, doc_id=doc_id)
+
+        # Notify subscribers (if pipeline is wired up)
+        if self._subscription_service is not None and self._notification_service is not None:
+            subscriber_ids = self._subscription_service.get_subscribers(
+                project_space_id=project_space_id,
+                doc_id=doc_id,
+                doc_type=document.doc_type,
+            )
+            # Version 0 signals deletion to subscribers
+            self._notification_service.generate(
+                doc_id=doc_id,
+                version=0,
+                subscriber_ids=subscriber_ids,
+                project_space_id=project_space_id,
+            )
+
+        # Audit log
+        self._audit.log(
+            operation_type="delete_document",
+            operator_project_id=project_id,
+            target_id=doc_id,
+            result="success",
+            project_space_id=project_space_id,
+        )
+
+        return {"doc_id": doc_id, "status": "deleted"}
 
     def _get_file_path(
         self,

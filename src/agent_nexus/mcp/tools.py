@@ -758,6 +758,7 @@ After completing significant changes, push updated documents:
                 .filter(
                     Document.subproject_id == project_id,
                     Document.project_space_id == subproject.project_space_id,
+                    Document.status == "active",
                 )
                 .all()
             )
@@ -773,6 +774,32 @@ After completing significant changes, push updated documents:
             ]
         except AgentNexusError as exc:
             return [self._error_dict(exc)]
+
+    # ------------------------------------------------------------------
+    # Tool: delete_document
+    # ------------------------------------------------------------------
+
+    async def delete_document(self, project_id: str, doc_id: str) -> dict:
+        """
+        Soft-delete a document owned by project_id.
+
+        The document is marked as deleted and removed from search results.
+        Version history is fully preserved (git-style: deletion is recorded,
+        not erased). Subscribers receive a notification with version=0 to
+        signal that the document has been removed.
+
+        Raises UNAUTHORIZED if the document does not belong to project_id.
+        Raises DOC_NOT_FOUND if the document does not exist or is already deleted.
+        """
+        try:
+            subproject = self._validate_project(project_id)
+            return self._c.document_service.delete(
+                doc_id=doc_id,
+                project_id=project_id,
+                project_space_id=subproject.project_space_id,
+            )
+        except AgentNexusError as exc:
+            return self._error_dict(exc)
 
     # ------------------------------------------------------------------
     # Tool: get_my_updates_with_context  (read — one-call update check)

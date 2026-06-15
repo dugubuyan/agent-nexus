@@ -64,7 +64,9 @@ class Document(Base):
     doc_type: Mapped[str] = mapped_column(String, nullable=False)  # e.g. requirement | design | api | config | changelog | runbook | schema | test-plan
     doc_variant: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # e.g. config→dev/test/prod, api→rest/graphql, changelog→notes/breaking
     latest_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active")  # active | deleted
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Relationships
     project_space: Mapped["ProjectSpace"] = relationship(back_populates="documents")

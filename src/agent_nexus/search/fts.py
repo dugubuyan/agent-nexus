@@ -231,3 +231,16 @@ def search(
         }
         for row in rows
     ]
+
+
+def remove_doc(db: Session, doc_id: str) -> None:
+    """
+    Remove a document from the FTS index.
+
+    Called when a document is soft-deleted so it no longer appears
+    in search results. The version history in the main tables is untouched.
+    """
+    db.execute(
+        text("DELETE FROM doc_fts WHERE doc_id = :doc_id"),
+        {"doc_id": doc_id},
+    )

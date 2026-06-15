@@ -342,6 +342,32 @@ async def list_documents(project_id: str) -> list[dict]:
 
 
 @mcp.tool()
+async def delete_document(project_id: str, doc_id: str) -> dict:
+    """
+    Soft-delete a document owned by project_id.
+
+    The document is marked as deleted and disappears from list_documents,
+    get_document, and search_documents. Version history is fully preserved
+    (git-style: deletion is a record, not an erasure). Subscribers receive
+    a notification with version=0 signalling that the document was removed.
+
+    Only the owning project (the one whose project_id is the prefix of doc_id)
+    may delete the document. Returns {"doc_id": ..., "status": "deleted"} on
+    success, or an error dict with UNAUTHORIZED / DOC_NOT_FOUND.
+    """
+    handler, session = _get_handler()
+    try:
+        result = await handler.delete_document(project_id, doc_id)
+        session.commit()
+        return result
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+@mcp.tool()
 async def search_documents(
     project_space_id: str,
     query: str,
