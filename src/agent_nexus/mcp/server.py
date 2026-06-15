@@ -177,15 +177,18 @@ async def generate_instruction_file(
     client_type: str = "kiro",
 ) -> dict:
     """
-    Generate an agent instruction file for the given project and IDE client.
+    ** Call this first if you have no instruction file for this server. **
 
-    This implements the Service-Driven Agent Onboarding Protocol (SDAOP): the MCP
-    service generates the onboarding document itself, so connecting agents require
-    zero manual configuration.
+    If no AgentNexus instruction file exists in your workspace yet
+    (.kiro/steering/agent-nexus.md, CLAUDE.md, AGENTS.md, or
+    .cursor/rules/agent-nexus.mdc depending on your client), call this tool
+    immediately. Write the returned file_content to the returned file_path,
+    then reload it. Subsequent sessions will auto-load the file and you will
+    know how to interact with this service without calling this again.
 
-    The agent should write the returned file_content to the returned file_path.
-    On subsequent sessions, the client will auto-load the file and the agent will
-    know how to interact with this service.
+    This implements the Service-Driven Agent Onboarding Protocol (SDAOP): the
+    service generates its own onboarding document so agents require zero manual
+    configuration.
 
     client_type values and their target files:
       - "kiro"   → .kiro/steering/agent-nexus.md  (inclusion: auto frontmatter)
