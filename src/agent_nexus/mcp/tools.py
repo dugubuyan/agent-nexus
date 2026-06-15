@@ -232,42 +232,26 @@ class ToolHandler:
     # existing docs (e.g. "config" matches config/dev, config/prod, etc.)
     # Full variant paths like "runbook/deploy" are also supported and matched exactly.
     _BUILTIN_CHECKLISTS: dict = {
-        # --- development projects ---
-        ("development", "design"):      {"required": ["requirement"],                        "recommended": ["design"]},
-        ("development", "development"): {"required": ["requirement", "design", "api"],       "recommended": ["task", "schema", "config"]},
-        ("development", "testing"):     {"required": ["api", "test-plan"],                   "recommended": ["task", "config", "requirement"]},
-        ("development", "deployment"):  {"required": ["config", "runbook"],                  "recommended": ["changelog"]},
-        ("development", "upgrade"):     {"required": ["changelog", "config"],                "recommended": ["runbook", "api"]},
-        # --- testing projects ---
-        ("testing", "design"):          {"required": ["test-plan"],                          "recommended": ["requirement"]},
-        ("testing", "development"):     {"required": ["test-plan", "api"],                   "recommended": ["task", "config"]},
-        ("testing", "testing"):         {"required": ["test-plan", "api"],                   "recommended": ["task", "config/test"]},
-        ("testing", "deployment"):      {"required": ["test-plan", "config/test"],           "recommended": []},
-        ("testing", "upgrade"):         {"required": ["test-plan", "changelog"],             "recommended": []},
-        # --- infra projects ---
-        ("infra", "design"):            {"required": ["design"],                             "recommended": ["requirement"]},
-        ("infra", "development"):       {"required": ["design", "config/prod"],              "recommended": ["runbook/deploy", "schema"]},
-        ("infra", "testing"):           {"required": ["runbook/deploy", "config/prod"],      "recommended": ["runbook/rollback"]},
-        ("infra", "deployment"):        {"required": ["runbook/deploy", "config/prod"],      "recommended": ["runbook/rollback", "changelog"]},
-        ("infra", "upgrade"):           {"required": ["runbook/rollback", "changelog", "config/prod"], "recommended": ["runbook/deploy"]},
-        # --- ops projects ---
-        ("ops", "design"):              {"required": ["requirement"],                        "recommended": ["design"]},
-        ("ops", "development"):         {"required": ["requirement", "config"],              "recommended": ["runbook", "schema"]},
-        ("ops", "testing"):             {"required": ["config", "runbook"],                  "recommended": ["test-plan"]},
-        ("ops", "deployment"):          {"required": ["config/prod", "runbook/deploy"],      "recommended": ["runbook/rollback"]},
-        ("ops", "upgrade"):             {"required": ["changelog", "config/prod"],           "recommended": ["runbook/rollback"]},
-        # --- shared projects ---
-        ("shared", "design"):           {"required": ["requirement", "design"],              "recommended": []},
-        ("shared", "development"):      {"required": ["requirement", "design", "api"],       "recommended": ["schema", "changelog"]},
-        ("shared", "testing"):          {"required": ["api", "test-plan"],                   "recommended": ["changelog"]},
-        ("shared", "deployment"):       {"required": ["api", "config"],                      "recommended": ["changelog"]},
-        ("shared", "upgrade"):          {"required": ["changelog/breaking", "api"],          "recommended": ["config"]},
-        # --- fallback for unknown types ---
-        ("*", "design"):                {"required": ["requirement"],                        "recommended": ["design"]},
-        ("*", "development"):           {"required": ["requirement", "design"],              "recommended": ["api", "task"]},
-        ("*", "testing"):               {"required": ["test-plan"],                          "recommended": ["config"]},
-        ("*", "deployment"):            {"required": ["config", "runbook"],                  "recommended": []},
-        ("*", "upgrade"):               {"required": ["changelog"],                          "recommended": ["config"]},
+        # Minimal universal fallback — applies to any (type, stage) combination
+        # not covered by a custom task/checklist document.
+        #
+        # Rationale: the authoritative "what documents does THIS project need at
+        # THIS stage" answer should come from the project itself via a
+        # task/checklist document (pushed as doc_id="{project_id}/task/checklist").
+        # This hardcoded table is intentionally kept minimal — just enough to
+        # give a new project a starting signal on day one.
+        #
+        # To define richer rules, push:
+        #   doc_id   = "{project_id}/task/checklist"
+        #   content  = Markdown with ## Required and ## Recommended sections,
+        #              each containing "- doc_type: description" list items.
+        #
+        # See §14 of docs/agentnexus-v4-ideas.md for the long-term direction.
+        ("*", "design"):      {"required": ["requirement"],  "recommended": ["design"]},
+        ("*", "development"): {"required": ["requirement"],  "recommended": ["design", "api", "task"]},
+        ("*", "testing"):     {"required": ["requirement"],  "recommended": ["test-plan", "config"]},
+        ("*", "deployment"):  {"required": ["requirement"],  "recommended": ["config", "runbook", "changelog"]},
+        ("*", "upgrade"):     {"required": ["requirement"],  "recommended": ["changelog", "config"]},
     }
 
     _DOC_TYPE_DESCRIPTIONS: dict = {
@@ -334,15 +318,12 @@ class ToolHandler:
         return result
 
     def _get_builtin_rules(self, project_type: str, stage: str) -> dict:
-        """Return the built-in required/recommended lists for (project_type, stage)."""
-        key = (project_type, stage)
-        if key in self._BUILTIN_CHECKLISTS:
-            return self._BUILTIN_CHECKLISTS[key]
-        # fallback to wildcard
-        fallback = ("*", stage)
-        if fallback in self._BUILTIN_CHECKLISTS:
-            return self._BUILTIN_CHECKLISTS[fallback]
-        return {"required": [], "recommended": []}
+        """Return the built-in fallback rules for the given stage.
+
+        All project types now share the same minimal universal fallback.
+        For project-specific rules, push a task/checklist document instead.
+        """
+        return self._BUILTIN_CHECKLISTS.get(("*", stage), {"required": [], "recommended": []})
 
     async def get_document_checklist(self, project_id: str) -> dict:
         """
@@ -535,6 +516,26 @@ Examples:
 - `{{project_id}}/api`
 - `{{project_id}}/design`
 - `{{project_id}}/config/dev`
+
+## Custom Checklist (declare what YOUR project needs)
+
+The system uses a minimal built-in fallback checklist (only `requirement` is
+required for all stages). You should declare your own rules early in the
+`design` stage by pushing a checklist document:
+
+  doc_id  = `{{project_id}}/task/checklist`
+  content = Markdown with two sections:
+
+    ## Required
+    - requirement: Functional and non-functional requirements
+    - design: Architecture and technical design
+
+    ## Recommended
+    - api: API contracts
+    - config/dev: Development environment config
+
+`get_document_checklist` will use your custom checklist instead of the built-in
+fallback as soon as this document exists. Push it first, before other documents.
 
 ## Cross-Service Document Ownership
 
