@@ -8,9 +8,13 @@ Runs in streamable-HTTP mode so multiple agents can connect simultaneously.
 Default endpoint: http://0.0.0.0:10000/mcp
 """
 
+import json
 import os
 
 from mcp.server.fastmcp import FastMCP
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from agent_nexus.mcp.dependencies import ServiceContainer, make_session_factory
 from agent_nexus.mcp.tools import ToolHandler
@@ -20,6 +24,77 @@ mcp = FastMCP(
     host=os.environ.get("AGENT_NEXUS_HOST", "0.0.0.0"),
     port=int(os.environ.get("AGENT_NEXUS_PORT", "10086")),
 )
+
+
+class _SessionErrorMiddleware(BaseHTTPMiddleware):
+    """
+    Intercept MCP -32600 'Missing session ID' responses on /mcp and enrich
+    the error message with a pointer to the REST fallback endpoint.
+
+    Agents that mistakenly POST raw JSON to /mcp instead of using the MCP
+    tool-call protocol receive a clear redirect rather than a cryptic error.
+    """
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+
+        # Only inspect JSON responses on the /mcp path
+        if request.url.path != "/mcp" or "application/json" not in response.headers.get("content-type", ""):
+            return response
+
+        # Buffer the body to inspect it
+        body = b""
+        async for chunk in response.body_iterator:
+            body += chunk
+
+        try:
+            data = json.loads(body)
+        except Exception:
+            # Not valid JSON — return as-is
+            return Response(
+                content=body,
+                status_code=response.status_code,
+                headers=dict(response.headers),
+                media_type=response.media_type,
+            )
+
+        # Check for the specific session error
+        error = data.get("error", {})
+        if (
+            isinstance(error, dict)
+            and error.get("code") == -32600
+            and "Missing session ID" in error.get("message", "")
+        ):
+            error["message"] = (
+                "Bad Request: Missing session ID. "
+                "Do not POST directly to /mcp — that requires an active MCP session. "
+                "To push a document without a session, use the REST endpoint instead: "
+                "POST /api/documents with JSON body {project_id, doc_id, content}."
+            )
+            body = json.dumps(data).encode()
+
+        return Response(
+            content=body,
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            media_type=response.media_type,
+        )
+
+
+# Attach middleware to the underlying Starlette app after FastMCP is set up.
+# We monkey-patch streamable_http_app to wrap it once on first access.
+_original_streamable_http_app = mcp.streamable_http_app.__func__  # type: ignore[attr-defined]
+
+
+def _patched_streamable_http_app(self):
+    app = _original_streamable_http_app(self)
+    app.add_middleware(_SessionErrorMiddleware)
+    return app
+
+
+import types  # noqa: E402
+
+mcp.streamable_http_app = types.MethodType(_patched_streamable_http_app, mcp)
 
 # ---------------------------------------------------------------------------
 # Session factory (engine config lives in dependencies.make_engine)
@@ -497,3 +572,140 @@ async def planner_delete_project(project_id: str, space_id: str) -> dict:
 from agent_nexus.web.routes import register_web_routes  # noqa: E402
 
 register_web_routes(mcp, get_handler=_get_handler)
+
+# ---------------------------------------------------------------------------
+# MCP Resources — static onboarding + per-client templates
+#
+# Two categories:
+#   1. agent-nexus://onboarding  — INSTRUCTIONAL: agent must follow these steps
+#   2. agent-nexus://templates/* — TEMPLATES: fill in placeholders before use
+#
+# Placeholders in templates use {{UPPER_CASE}} convention to make them obvious.
+# ---------------------------------------------------------------------------
+
+
+import json as _json
+import os as _os
+
+_SPEC_DIR = _os.path.join(
+    _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.dirname(__file__)))),
+    "spec"
+)
+_INSTRUCTIONS_DIR = _os.path.join(_SPEC_DIR, "instructions")
+
+
+def _load_onboarding() -> str:
+    path = _os.path.join(_SPEC_DIR, "onboarding.md")
+    with open(path) as f:
+        return f.read()
+
+
+def _load_steering_resource(client_key: str) -> str:
+    """Load and render a steering template for MCP resource (placeholders kept for user to fill)."""
+    clients_path = _os.path.join(_INSTRUCTIONS_DIR, "clients.json")
+    with open(clients_path) as f:
+        clients = _json.load(f)
+    config = clients.get(client_key, clients["default"])
+
+    common_path = _os.path.join(_INSTRUCTIONS_DIR, "common.md")
+    with open(common_path) as f:
+        common = f.read()
+
+    template_path = _os.path.join(_INSTRUCTIONS_DIR, config["template"])
+    with open(template_path) as f:
+        template = f.read()
+
+    return template.replace("{{COMMON}}", common)
+
+
+def _load_push_tool() -> str:
+    """Load the push tool script template."""
+    path = _os.path.join(_SPEC_DIR, "push-tool.py")
+    with open(path) as f:
+        return f.read()
+
+
+@mcp.resource(
+    "agent-nexus://onboarding",
+    name="AgentNexus Onboarding",
+    description=(
+        "INSTRUCTIONAL: Read this first if you have no local AgentNexus instruction file. "
+        "Guides you through registering your project, creating your steering file, "
+        "and pushing your first document."
+    ),
+    mime_type="text/markdown",
+)
+def resource_onboarding() -> str:
+    return _load_onboarding()
+
+
+@mcp.resource(
+    "agent-nexus://templates/steering/kiro",
+    name="[TEMPLATE] Kiro Steering File",
+    description=(
+        "[TEMPLATE] Kiro steering file for .kiro/steering/agent-nexus.md. "
+        "Replace {{PROJECT_NAME}}, {{PROJECT_ID}}, {{PROJECT_SPACE_ID}} with your values, "
+        "then write to .kiro/steering/agent-nexus.md in your workspace."
+    ),
+    mime_type="text/markdown",
+)
+def resource_steering_kiro() -> str:
+    return _load_steering_resource("kiro")
+
+
+@mcp.resource(
+    "agent-nexus://templates/steering/claude",
+    name="[TEMPLATE] Claude Instruction File",
+    description=(
+        "[TEMPLATE] Claude instruction file for CLAUDE.md. "
+        "Replace {{PROJECT_NAME}}, {{PROJECT_ID}}, {{PROJECT_SPACE_ID}} with your values, "
+        "then write to CLAUDE.md in your workspace root."
+    ),
+    mime_type="text/markdown",
+)
+def resource_steering_claude() -> str:
+    return _load_steering_resource("claude")
+
+
+@mcp.resource(
+    "agent-nexus://templates/steering/codex",
+    name="[TEMPLATE] Codex Agent File",
+    description=(
+        "[TEMPLATE] Codex/OpenAI agent file for AGENTS.md. "
+        "Replace {{PROJECT_NAME}}, {{PROJECT_ID}}, {{PROJECT_SPACE_ID}} with your values, "
+        "then write to AGENTS.md in your workspace root."
+    ),
+    mime_type="text/markdown",
+)
+def resource_steering_codex() -> str:
+    return _load_steering_resource("codex")
+
+
+@mcp.resource(
+    "agent-nexus://templates/steering/cursor",
+    name="[TEMPLATE] Cursor Rules File",
+    description=(
+        "[TEMPLATE] Cursor rules file for .cursor/rules/agent-nexus.mdc. "
+        "Replace {{PROJECT_NAME}}, {{PROJECT_ID}}, {{PROJECT_SPACE_ID}} with your values, "
+        "then write to .cursor/rules/agent-nexus.mdc in your workspace."
+    ),
+    mime_type="text/markdown",
+)
+def resource_steering_cursor() -> str:
+    return _load_steering_resource("cursor")
+
+
+@mcp.resource(
+    "agent-nexus://templates/push-tool.py",
+    name="[TEMPLATE] Push Tool Script",
+    description=(
+        "[TEMPLATE] Python script for pushing documents via HTTP (no MCP session required). "
+        "Replace {{PROJECT_ID}} with your project UUID, then run: "
+        "python nexus_push.py <doc_type> <file.md>. "
+        "Also updates .kiro/nexus-state.json automatically after each push."
+    ),
+    mime_type="text/x-python",
+)
+def resource_push_tool() -> str:
+    return _load_push_tool()
+

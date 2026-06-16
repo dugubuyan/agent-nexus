@@ -15,7 +15,7 @@ from datetime import datetime
 
 from jinja2 import Environment, FileSystemLoader
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse, StreamingResponse
+from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from agent_nexus.services.errors import AgentNexusError
 
@@ -58,6 +58,23 @@ def _missing_param(name: str) -> JSONResponse:
 
 def register_web_routes(mcp, get_handler) -> None:
     """Register all web dashboard HTTP routes on the FastMCP instance."""
+
+    # ------------------------------------------------------------------
+    # GET /api/templates/{name}  →  serve template files over HTTP
+    # Fallback for MCP clients that cannot read MCP Resources directly.
+    # e.g. curl http://localhost:10086/api/templates/push-tool.py
+    # ------------------------------------------------------------------
+
+    @mcp.custom_route("/api/templates/{name:path}", methods=["GET"])
+    async def api_template(request: Request) -> Response:
+        from agent_nexus.mcp.server import _PUSH_TOOL_PY
+        name = request.path_params["name"]
+        if name == "push-tool.py":
+            return Response(content=_PUSH_TOOL_PY, media_type="text/x-python")
+        return JSONResponse(
+            {"error": "NOT_FOUND", "message": f"Template '{name}' not found. Available: push-tool.py"},
+            status_code=404,
+        )
 
     # ------------------------------------------------------------------
     # GET /api/spaces  →  planner_service.list_spaces()

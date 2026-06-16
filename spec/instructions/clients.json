@@ -1,0 +1,27 @@
+{
+  "kiro": {
+    "template": "kiro.md",
+    "file_path": ".kiro/steering/agent-nexus.md",
+    "push_script_path": ".kiro/nexus_push.py"
+  },
+  "claude": {
+    "template": "claude.md",
+    "file_path": "CLAUDE.md",
+    "push_script_path": "nexus_push.py"
+  },
+  "codex": {
+    "template": "codex.md",
+    "file_path": "AGENTS.md",
+    "push_script_path": "nexus_push.py"
+  },
+  "cursor": {
+    "template": "cursor.md",
+    "file_path": ".cursor/rules/agent-nexus.mdc",
+    "push_script_path": ".cursor/nexus_push.py"
+  },
+  "default": {
+    "template": "default.md",
+    "file_path": "AGENT_NEXUS.md",
+    "push_script_path": "nexus_push.py"
+  }
+}

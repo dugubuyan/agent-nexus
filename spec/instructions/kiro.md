@@ -1,0 +1,7 @@
+---
+inclusion: auto
+---
+
+# AgentNexus
+
+{{COMMON}}

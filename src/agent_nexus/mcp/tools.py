@@ -109,7 +109,32 @@ class ToolHandler:
                 metadata=metadata,
             )
             result = self._c.document_service.push(req)
-            return result.model_dump()
+            out = result.model_dump()
+            # Tell the client to persist the version anchor locally.
+            # This is the equivalent of git updating .git/refs after a push:
+            # the client now knows which server version its local file maps to,
+            # enabling diff-based pushes and conflict detection in future sessions.
+            out["nexus_state_update"] = {
+                "instruction": (
+                    "Update your local .kiro/nexus-state.json immediately. "
+                    "This file is your version anchor — like .git/refs — and enables "
+                    "diff-based pushes and conflict detection in future sessions."
+                ),
+                "file": ".kiro/nexus-state.json",
+                "operation": "merge",
+                "entry": {
+                    "doc_id": result.doc_id,
+                    "local_version": result.version,
+                    "local_file_hint": doc_id.split("/", 1)[-1],
+                },
+                "example_state": {
+                    result.doc_id: {
+                        "local_version": result.version,
+                        "local_file_hint": doc_id.split("/", 1)[-1],
+                    }
+                },
+            }
+            return out
         except AgentNexusError as exc:
             return self._error_dict(exc)
 
@@ -480,103 +505,49 @@ class ToolHandler:
     ) -> dict:
         """
         Generate an agent instruction file (SDAOP) for the given client type.
+        Reads from spec/instructions/ template files.
         """
-        workflow_content = f"""## Service Identity
+        import json
+        import os
 
-- project_name: `{project_name}`
-- project_space_id: `{project_space_id}`
-- MCP endpoint: `http://localhost:10086/mcp`
+        spec_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+            "spec"
+        )
+        instructions_dir = os.path.join(spec_dir, "instructions")
 
-## Initialization Workflow
+        # Load client config
+        clients_config_path = os.path.join(instructions_dir, "clients.json")
+        with open(clients_config_path, "r", encoding="utf-8") as f:
+            clients = json.load(f)
 
-At the start of every session:
+        client_key = client_type.lower()
+        client_config = clients.get(client_key, clients["default"])
 
-1. Call `get_project_id_by_name(name="{project_name}", project_space_id="{project_space_id}")` to resolve your project_id.
-2. Call `get_my_updates_with_context(project_id=<project_id>)` to check for pending document changes.
-3. Call `get_document_checklist(project_id=<project_id>)` to see which documents are missing for your current stage.
+        # Load common template
+        common_path = os.path.join(instructions_dir, "common.md")
+        with open(common_path, "r", encoding="utf-8") as f:
+            common_content = f.read()
 
-For step 2, each update contains:
-- `update_id`: acknowledge with `ack_update` after processing
-- `doc_type`: type of document (requirement/design/api/config/task)
-- `new_version`: new version number
-- `diff`: unified diff showing what changed (+ added, - removed)
-- `latest_content`: full current document content
+        # Load client-specific template
+        template_path = os.path.join(instructions_dir, client_config["template"])
+        with open(template_path, "r", encoding="utf-8") as f:
+            template_content = f.read()
 
-If updates exist: apply changes based on `diff` and `latest_content`, then call `ack_update(project_id, update_id)`.
+        push_script_path = client_config["push_script_path"]
+        file_path = client_config["file_path"]
 
-For step 3, if `all_required_present` is false, create the missing documents listed in `required_docs`
-before proceeding with other work. Use `suggested_doc_id` as the doc_id when calling `push_document`.
+        # Render common content with dynamic values
+        common_rendered = (
+            common_content
+            .replace("{{PROJECT_NAME}}", project_name)
+            .replace("{{PROJECT_SPACE_ID}}", project_space_id)
+            .replace("{{PROJECT_ID}}", f"<your_project_id>")
+            .replace("{{PUSH_SCRIPT_PATH}}", push_script_path)
+        )
 
-## Document Convention
-
-doc_id format: `{{project_id}}/{{doc_type}}`
-
-Examples:
-- `{{project_id}}/requirement`
-- `{{project_id}}/api`
-- `{{project_id}}/design`
-- `{{project_id}}/config/dev`
-
-## Custom Checklist (declare what YOUR project needs)
-
-The system uses a minimal built-in fallback checklist (only `requirement` is
-required for all stages). You should declare your own rules early in the
-`design` stage by pushing a checklist document:
-
-  doc_id  = `{{project_id}}/task/checklist`
-  content = Markdown with two sections:
-
-    ## Required
-    - requirement: Functional and non-functional requirements
-    - design: Architecture and technical design
-
-    ## Recommended
-    - api: API contracts
-    - config/dev: Development environment config
-
-`get_document_checklist` will use your custom checklist instead of the built-in
-fallback as soon as this document exists. Push it first, before other documents.
-
-## Cross-Service Document Ownership
-
-Deployment, ops/runbook, and global ADR documents serve the whole Space and do
-NOT belong to any single business service. Before pushing such a document, find
-its owning coordination unit — never dump it into your own service's project_id:
-
-1. Call `list_projects(project_space_id)` (or `get_project_id_by_name`) to check
-   whether a coordination unit already exists (e.g. `platform`, `infra`, `ops`).
-2. If it exists → push the document under THAT project_id, e.g.
-   `push_document(project_id=<platform_id>, doc_id="<platform_id>/deployment/<name>", ...)`.
-   Services that depend on it subscribe via `add_subscription(target_doc_type="deployment")`.
-3. If no such unit exists but a real team/role owns this knowledge → first
-   `register_project(name="platform", type="infra", project_space_id=..., stage="deployment")`,
-   then push under the new project_id.
-4. Do NOT place cross-service documents under a business service's own project_id.
-
-## Update Handling
-
-After completing significant changes, push updated documents:
-`push_document(project_id=<project_id>, doc_id="<project_id>/<doc_type>", content="<markdown content>")`
-"""
-
-        client_type = client_type.lower()
-
-        if client_type == "kiro":
-            file_path = ".kiro/steering/agent-nexus.md"
-            content = f"---\ninclusion: auto\n---\n\n# AgentNexus\n\n{workflow_content}"
-        elif client_type == "claude":
-            file_path = "CLAUDE.md"
-            content = f"# AgentNexus\n\n{workflow_content}"
-        elif client_type == "codex":
-            file_path = "AGENTS.md"
-            content = f"# AgentNexus\n\n{workflow_content}"
-        elif client_type == "cursor":
-            file_path = ".cursor/rules/agent-nexus.mdc"
-            content = f"---\nalwaysApply: true\n---\n\n# AgentNexus\n\n{workflow_content}"
-        else:
-            # fallback to kiro
-            file_path = ".kiro/steering/agent-nexus.md"
-            content = f"---\ninclusion: auto\n---\n\n# AgentNexus\n\n{workflow_content}"
+        # Render client template, injecting common content
+        content = template_content.replace("{{COMMON}}", common_rendered)
 
         return {
             "file_path": file_path,
@@ -1057,6 +1028,93 @@ After completing significant changes, push updated documents:
         space_id is optional: if omitted, returns ALL spaces and their projects.
         space_id may be a UUID or a space name (human-readable).
         """
+        _ONBOARDING = {
+            "onboarding": {
+                "note": (
+                    "You are a NEW agent connecting to AgentNexus for the first time. "
+                    "Follow these steps before doing any other work:"
+                ),
+                "steps": [
+                    {
+                        "step": 1,
+                        "action": "register_project",
+                        "description": (
+                            "Register yourself as a sub-project. "
+                            "Pick a short snake_case name for your service/agent (e.g. 'auth-service', 'data-pipeline'). "
+                            "Use the space_id from the spaces list above."
+                        ),
+                        "example": {
+                            "tool": "register_project",
+                            "args": {
+                                "name": "<your-service-name>",
+                                "type": "development",
+                                "project_space_id": "<space_id>",
+                                "stage": "design",
+                            },
+                        },
+                    },
+                    {
+                        "step": 2,
+                        "action": "generate_instruction_file",
+                        "description": (
+                            "Generate and write your local instruction file so you remember "
+                            "your project_id and workflow in future sessions. "
+                            "Write the returned file_content to the returned file_path immediately."
+                        ),
+                        "example": {
+                            "tool": "generate_instruction_file",
+                            "args": {
+                                "project_name": "<your-service-name>",
+                                "project_space_id": "<space_id>",
+                                "client_type": "kiro",
+                            },
+                        },
+                    },
+                    {
+                        "step": 3,
+                        "action": "push_document",
+                        "description": (
+                            "Push your first document. doc_id MUST be prefixed with your project_id. "
+                            "Format: '<project_id>/<doc_type>'. Start with a requirement document. "
+                            "Use the MCP tool for normal-sized content. "
+                            "For large documents (design specs, long requirements), use HTTP POST directly "
+                            "to avoid LLM token limits — same validation, same pipeline."
+                        ),
+                        "example_mcp": {
+                            "tool": "push_document",
+                            "args": {
+                                "project_id": "<project_id from step 1>",
+                                "doc_id": "<project_id>/requirement",
+                                "content": "## Requirements\n\n...",
+                            },
+                        },
+                        "example_http": {
+                            "method": "POST",
+                            "url": "http://localhost:10086/api/documents",
+                            "headers": {"Content-Type": "application/json"},
+                            "body": {
+                                "project_id": "<project_id from step 1>",
+                                "doc_id": "<project_id>/requirement",
+                                "content": "## Requirements\n\n...",
+                            },
+                            "curl": (
+                                "curl -X POST http://localhost:10086/api/documents "
+                                "-H 'Content-Type: application/json' "
+                                "-d '{\"project_id\":\"<pid>\",\"doc_id\":\"<pid>/requirement\",\"content\":\"## Requirements\\n\\n...\"}'"
+                            ),
+                        },
+                        "after_push": (
+                            "The push_document response contains a 'nexus_state_update' field. "
+                            "Merge the 'entry' into .kiro/nexus-state.json immediately. "
+                            "This is your local version anchor — like .git/refs — so future sessions "
+                            "can detect drift and avoid redundant full-content pushes."
+                        ),
+                    },
+                ],
+                "doc_id_rule": "ALWAYS prefix doc_id with your project_id. e.g. if project_id='abc-123', doc_id must start with 'abc-123/'.",
+            }
+        }
+
         try:
             if space_id:
                 resolved = self._c.planner_service._resolve_space_id(space_id)
@@ -1074,7 +1132,10 @@ After completing significant changes, push updated documents:
                     })
                 return {"space_id": resolved, "projects": projects_out}
             else:
-                return self._c.planner_service.global_overview()
+                result = self._c.planner_service.global_overview()
+                # Inject onboarding hint for agents with no prior context
+                result.update(_ONBOARDING)
+                return result
         except AgentNexusError as exc:
             return self._error_dict(exc)
 
