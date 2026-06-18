@@ -14,6 +14,12 @@ Configure via env vars:
 
 import os
 
+from dotenv import load_dotenv
+
+# Load .env before reading any config — must happen before server.py is imported,
+# because server.py creates the FastMCP instance at import time and reads host/port.
+load_dotenv()
+
 # Read config BEFORE importing server.py, because server.py creates the
 # FastMCP instance at import time and reads host/port from env vars.
 HOST = os.environ.get("AGENT_NEXUS_HOST", "0.0.0.0")

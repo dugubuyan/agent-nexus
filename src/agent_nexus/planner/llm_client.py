@@ -49,9 +49,16 @@ class OpenAIClient(LLMClient):
 
     需要安装 `openai` 包（`pip install openai`）。
     如果包未安装，实例化时会抛出明确的 ImportError，而不是在模块导入时崩溃。
+
+    支持 OpenAI-compatible 接口（Azure、Ollama、第三方代理等），通过 base_url 指定。
     """
 
-    def __init__(self, model: str = "gpt-4o", api_key: str | None = None):
+    def __init__(
+        self,
+        model: str = "gpt-4o",
+        api_key: str | None = None,
+        base_url: str | None = None,
+    ):
         try:
             from openai import AsyncOpenAI  # noqa: PLC0415
         except ImportError as exc:
@@ -61,7 +68,10 @@ class OpenAIClient(LLMClient):
             ) from exc
 
         self._model = model
-        self._client = AsyncOpenAI(api_key=api_key)
+        kwargs: dict = {"api_key": api_key}
+        if base_url:
+            kwargs["base_url"] = base_url
+        self._client = AsyncOpenAI(**kwargs)
 
     async def complete(
         self,
@@ -110,7 +120,12 @@ class AnthropicClient(LLMClient):
     DEFAULT_MODEL = "claude-3-5-sonnet-20241022"
     MAX_TOKENS = 8192
 
-    def __init__(self, model: str | None = None, api_key: str | None = None):
+    def __init__(
+        self,
+        model: str | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+    ):
         try:
             import anthropic as _anthropic  # noqa: PLC0415
         except ImportError as exc:
@@ -120,7 +135,10 @@ class AnthropicClient(LLMClient):
             ) from exc
 
         self._model = model or self.DEFAULT_MODEL
-        self._client = _anthropic.AsyncAnthropic(api_key=api_key)
+        kwargs: dict = {"api_key": api_key}
+        if base_url:
+            kwargs["base_url"] = base_url
+        self._client = _anthropic.AsyncAnthropic(**kwargs)
 
     async def complete(
         self,
@@ -174,12 +192,13 @@ def make_llm_client(
     provider: str | None = None,
     model: str | None = None,
     api_key: str | None = None,
+    base_url: str | None = None,
 ) -> LLMClient | None:
     """工厂：按 env / 参数选择 provider，构造对应 LLMClient。
 
     优先级（高到低）：
         1. 函数参数（显式传入）
-        2. 环境变量（PLANNER_LLM_PROVIDER / PLANNER_LLM_MODEL / PLANNER_LLM_API_KEY）
+        2. 环境变量（PLANNER_LLM_PROVIDER / PLANNER_LLM_MODEL / PLANNER_LLM_API_KEY / PLANNER_LLM_BASE_URL）
 
     无 api_key 时返回 None（优雅降级），调用方（PlannerService）负责
     在 AI 能力入口处返回 LLM_NOT_CONFIGURED 错误，读/写能力不受影响。
@@ -188,6 +207,7 @@ def make_llm_client(
         provider: provider 名称（openai | anthropic | ...），None 时读 env
         model: 模型名称，None 时读 env
         api_key: API 密钥，None 时读 env
+        base_url: 自定义 API 端点（用于 Azure、Ollama 等兼容接口），None 时读 env
 
     Returns:
         LLMClient 实例，或 None（未配置 api_key）
@@ -195,6 +215,7 @@ def make_llm_client(
     resolved_provider = provider or os.environ.get("PLANNER_LLM_PROVIDER", "openai")
     resolved_model = model or os.environ.get("PLANNER_LLM_MODEL") or None
     resolved_api_key = api_key or os.environ.get("PLANNER_LLM_API_KEY") or None
+    resolved_base_url = base_url or os.environ.get("PLANNER_LLM_BASE_URL") or None
 
     # 无 api_key → 优雅降级
     if not resolved_api_key:
@@ -207,11 +228,13 @@ def make_llm_client(
         return OpenAIClient(
             model=resolved_model or "gpt-4o",
             api_key=resolved_api_key,
+            base_url=resolved_base_url,
         )
     elif normalized == "anthropic":
         return AnthropicClient(
             model=resolved_model,
             api_key=resolved_api_key,
+            base_url=resolved_base_url,
         )
     else:
         raise ValueError(

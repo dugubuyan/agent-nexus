@@ -10,7 +10,7 @@
 
     :root {
       --nav-w: 240px;
-      --chat-w: 300px;
+      --chat-w: 380px;
       --top-h: 48px;
       --bg: #f5f6f8;
       --surface: #fff;
@@ -283,8 +283,22 @@
     #doc-placeholder .icon-big { font-size: 48px; margin-bottom: 12px; }
 
     /* ── AI Chat Panel ───────────────────────────────────────── */
+    #chat-resizer {
+      width: 5px;
+      background: transparent;
+      cursor: col-resize;
+      flex-shrink: 0;
+      transition: background 0.15s;
+      position: relative;
+      z-index: 1;
+    }
+    #chat-resizer:hover,
+    #chat-resizer.dragging { background: var(--primary); }
+
     #chat-panel {
       width: var(--chat-w);
+      min-width: 220px;
+      max-width: 640px;
       background: var(--surface);
       border-left: 1px solid var(--border);
       display: flex;
@@ -541,6 +555,7 @@
   </section>
 
   <!-- Right: AI Chat Panel -->
+  <div id="chat-resizer" title="Drag to resize"></div>
   <aside id="chat-panel">
     <div id="chat-header">🤖 AI Chat</div>
     <div id="chat-context">Context: <span id="chat-space-label">no space selected</span></div>
@@ -1099,6 +1114,41 @@ chatInput.addEventListener('keydown', e => {
 chatClear.addEventListener('click', () => {
   chatMessages.innerHTML = '<div class="chat-msg assistant">Hi! Select a space and ask me anything about your documents.</div>';
 });
+
+// ── Chat Panel Resize ─────────────────────────────────────────────
+(function () {
+  const resizer = qs('#chat-resizer');
+  const chatPanel = qs('#chat-panel');
+  let startX = 0;
+  let startWidth = 0;
+
+  resizer.addEventListener('mousedown', e => {
+    e.preventDefault();
+    startX = e.clientX;
+    startWidth = chatPanel.offsetWidth;
+    resizer.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    function onMouseMove(e) {
+      // dragging left → panel grows; dragging right → panel shrinks
+      const delta = startX - e.clientX;
+      const newWidth = Math.min(640, Math.max(220, startWidth + delta));
+      chatPanel.style.width = newWidth + 'px';
+    }
+
+    function onMouseUp() {
+      resizer.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    }
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  });
+})();
 
 // ── Init ──────────────────────────────────────────────────────────
 loadSpaces();

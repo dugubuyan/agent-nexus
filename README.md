@@ -83,6 +83,9 @@ The diff payload looks like:
 # Install
 pip install -e ".[dev]"
 
+# Configure environment (copy example and fill in values)
+cp .env.example .env
+
 # Initialize database
 python -m alembic upgrade head
 
@@ -130,7 +133,7 @@ Features:
 - **Search** — full-text search across all documents in a space
 - **AI Chat** — ask questions about your project documents using natural language
 
-> **LLM configuration:** AI Chat requires `PLANNER_LLM_API_KEY` to be set. Set `PLANNER_LLM_PROVIDER` (`openai` or `anthropic`) and `PLANNER_LLM_MODEL` as needed. Leave the key unset to disable AI features while keeping all browse/search functionality.
+> **LLM configuration:** AI Chat requires `PLANNER_LLM_API_KEY` to be set. Set `PLANNER_LLM_PROVIDER` (`openai` or `anthropic`), `PLANNER_LLM_MODEL`, and optionally `PLANNER_LLM_BASE_URL` (for Azure / Ollama / compatible APIs) as needed. Leave the key unset to disable AI features while keeping all browse/search functionality.
 
 ## Out-of-Band Write Endpoint
 
@@ -183,6 +186,7 @@ This uses the same `DocumentService.push` pipeline as `push_document` (same vali
 | `PLANNER_LLM_PROVIDER` | `openai` | LLM provider for Planner AI (`openai` \| `anthropic`) |
 | `PLANNER_LLM_MODEL` | (provider default) | LLM model name |
 | `PLANNER_LLM_API_KEY` | (none) | API key; leave empty to disable AI features |
+| `PLANNER_LLM_BASE_URL` | (none) | Custom API endpoint for OpenAI-compatible APIs (Azure, Ollama, proxies) |
 
 ## Steering File Integration
 
