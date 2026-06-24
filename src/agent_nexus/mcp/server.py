@@ -51,10 +51,12 @@ class _SessionErrorMiddleware(BaseHTTPMiddleware):
             data = json.loads(body)
         except Exception:
             # Not valid JSON — return as-is
+            hdrs = dict(response.headers)
+            hdrs.pop("content-length", None)
             return Response(
                 content=body,
                 status_code=response.status_code,
-                headers=dict(response.headers),
+                headers=hdrs,
                 media_type=response.media_type,
             )
 
@@ -73,10 +75,12 @@ class _SessionErrorMiddleware(BaseHTTPMiddleware):
             )
             body = json.dumps(data).encode()
 
+        hdrs = dict(response.headers)
+        hdrs.pop("content-length", None)
         return Response(
             content=body,
             status_code=response.status_code,
-            headers=dict(response.headers),
+            headers=hdrs,
             media_type=response.media_type,
         )
 
