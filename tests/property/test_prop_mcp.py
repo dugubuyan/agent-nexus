@@ -128,35 +128,6 @@ def test_prop_mcp_nonexistent_project_id_get_document(project_id: str):
 
 @settings(max_examples=100)
 @given(project_id=nonexistent_project_id)
-def test_prop_mcp_nonexistent_project_id_push_document(project_id: str):
-    """
-    Property 22 (push_document): For any non-existent project_id,
-    push_document must return a dict with error == UNAUTHORIZED.
-
-    **Validates: Requirements 8.4**
-    """
-    session, engine, space_id = _make_db()
-    try:
-        with tempfile.TemporaryDirectory() as docs_root:
-            handler = _make_handler(session, docs_root)
-            result = _run(
-                handler.push_document(
-                    project_id=project_id,
-                    doc_id="any/requirement",
-                    content="# Test",
-                )
-            )
-            assert isinstance(result, dict), "push_document must return a dict"
-            assert result.get("error") == "UNAUTHORIZED", (
-                f"Expected UNAUTHORIZED, got {result}"
-            )
-    finally:
-        session.close()
-        engine.dispose()
-
-
-@settings(max_examples=100)
-@given(project_id=nonexistent_project_id)
 def test_prop_mcp_nonexistent_project_id_get_my_tasks(project_id: str):
     """
     Property 22 (get_my_tasks): For any non-existent project_id,

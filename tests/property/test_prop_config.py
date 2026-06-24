@@ -18,8 +18,10 @@ from sqlalchemy.orm import sessionmaker
 from agent_nexus.mcp.dependencies import ServiceContainer
 from agent_nexus.mcp.tools import ToolHandler
 from agent_nexus.models import Base, ProjectSpace
+from agent_nexus.search.fts import ensure_fts_table
 from agent_nexus.services.document_service import VALID_CONFIG_VARIANTS
 from agent_nexus.services.project_service import ProjectService
+from agent_nexus.services.schemas import PushRequest
 
 
 # ---------------------------------------------------------------------------
@@ -40,6 +42,7 @@ def _make_engine():
         cursor.close()
 
     Base.metadata.create_all(engine)
+    ensure_fts_table(engine)
     return engine
 
 
@@ -125,16 +128,13 @@ def test_prop_get_config_stage_isolation(contents):
 
             # Push config for all three stages
             for stage in stages:
-                result = _run(
-                    handler.push_document(
-                        project_id=project_id,
-                        doc_id=f"{project_id}/config/{stage}",
-                        content=stage_contents[stage],
-                    )
+                req = PushRequest(
+                    doc_id=f"{project_id}/config/{stage}",
+                    content=stage_contents[stage],
+                    pushed_by=project_id,
+                    project_space_id=space_id,
                 )
-                assert "error" not in result, (
-                    f"push_document failed for stage={stage}: {result}"
-                )
+                handler._c.document_service.push(req)
 
             # Verify each stage returns the correct content (no cross-stage contamination)
             for stage in stages:
@@ -192,16 +192,13 @@ def test_prop_get_config_missing_stage_returns_doc_not_found(content, queried_st
             )
 
             # Push config only for push_stage
-            push_result = _run(
-                handler.push_document(
-                    project_id=project_id,
-                    doc_id=f"{project_id}/config/{push_stage}",
-                    content=content,
-                )
+            req = PushRequest(
+                doc_id=f"{project_id}/config/{push_stage}",
+                content=content,
+                pushed_by=project_id,
+                project_space_id=space_id,
             )
-            assert "error" not in push_result, (
-                f"push_document failed for stage={push_stage}: {push_result}"
-            )
+            handler._c.document_service.push(req)
 
             # Querying queried_stage (which has no config) must return DOC_NOT_FOUND
             result = _run(handler.get_config(project_id=project_id, stage=queried_stage))

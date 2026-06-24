@@ -13,6 +13,7 @@ class PushRequest(BaseModel):
     pushed_by: str          # project_id or "agent:*" (agent:planner for Planner drafts)
     project_space_id: str
     metadata: dict = {}     # for config type, must contain "stage"
+    base_version: int | None = None  # expected server version; None skips check
 
 
 class PushResult(BaseModel):

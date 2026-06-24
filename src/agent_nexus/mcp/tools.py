@@ -77,68 +77,6 @@ class ToolHandler:
         return {"error": exc.error_code, "message": exc.message}
 
     # ------------------------------------------------------------------
-    # Tool: push_document  (write — checks archive)
-    # ------------------------------------------------------------------
-
-    async def push_document(
-        self,
-        project_id: str,
-        doc_id: str,
-        content: str,
-        metadata: dict | None = None,
-    ) -> dict:
-        """
-        Push a new document version.
-
-        Validates project_id, checks space not archived, then delegates to
-        DocumentService.push().
-
-        Requirements 8.1, 8.4, 10.6, 10.7
-        """
-        if metadata is None:
-            metadata = {}
-        try:
-            subproject = self._validate_project(project_id)
-            self._check_not_archived(subproject.project_space_id)
-
-            req = PushRequest(
-                doc_id=doc_id,
-                content=content,
-                pushed_by=project_id,
-                project_space_id=subproject.project_space_id,
-                metadata=metadata,
-            )
-            result = self._c.document_service.push(req)
-            out = result.model_dump()
-            # Tell the client to persist the version anchor locally.
-            # This is the equivalent of git updating .git/refs after a push:
-            # the client now knows which server version its local file maps to,
-            # enabling diff-based pushes and conflict detection in future sessions.
-            out["nexus_state_update"] = {
-                "instruction": (
-                    "Update your local .kiro/nexus-state.json immediately. "
-                    "This file is your version anchor — like .git/refs — and enables "
-                    "diff-based pushes and conflict detection in future sessions."
-                ),
-                "file": ".kiro/nexus-state.json",
-                "operation": "merge",
-                "entry": {
-                    "doc_id": result.doc_id,
-                    "local_version": result.version,
-                    "local_file_hint": doc_id.split("/", 1)[-1],
-                },
-                "example_state": {
-                    result.doc_id: {
-                        "local_version": result.version,
-                        "local_file_hint": doc_id.split("/", 1)[-1],
-                    }
-                },
-            }
-            return out
-        except AgentNexusError as exc:
-            return self._error_dict(exc)
-
-    # ------------------------------------------------------------------
     # Tool: get_document  (read)
     # ------------------------------------------------------------------
 
@@ -356,7 +294,7 @@ class ToolHandler:
 
         Priority:
           1. If a custom checklist document exists at {project_id}/task/checklist,
-             parse and use it (Markdown list format — see push_document for the format).
+             parse and use it (Markdown list format — see HTTP POST /api/documents for the format).
           2. Otherwise fall back to the built-in rules for the project's (type, stage).
 
         Use this at session start to know what documents to create before proceeding.
@@ -483,12 +421,9 @@ class ToolHandler:
             if checklist_source == "builtin":
                 result["hint"] = (
                     f"Using built-in checklist for type='{subproject.type}', stage='{subproject.stage}'. "
-                    f"To create missing documents, call push_document(project_id='{project_id}', "
-                    f"doc_id='<suggested_doc_id>', content='# Your content here'). "
-                    f"For large documents (e.g. existing files), use the out-of-band HTTP endpoint — "
-                    f"you can execute this directly with bash: "
+                    f"To create missing documents, use the HTTP POST endpoint: "
                     f'curl -X POST http://localhost:10086/api/documents -H "Content-Type: application/json" '
-                    f'-d \'{{"project_id": "{project_id}", "doc_id": "<doc_id>", "content": "<content>"}}\'. '
+                    f'-d \'{{"project_id": "{project_id}", "doc_id": "<suggested_doc_id>", "content": "<content>"}}\'. '
                     f"To customize this checklist, push a document with doc_id='{checklist_doc_id}' "
                     "containing ## Required and ## Recommended Markdown sections."
                 )
@@ -1072,23 +1007,14 @@ class ToolHandler:
                     },
                     {
                         "step": 3,
-                        "action": "push_document",
+                        "action": "push_via_http",
                         "description": (
-                            "Push your first document. doc_id MUST be prefixed with your project_id. "
+                            "Push your first document via HTTP POST. doc_id MUST be prefixed with your project_id. "
                             "Format: '<project_id>/<doc_type>'. Start with a requirement document. "
-                            "Use the MCP tool for normal-sized content. "
-                            "For large documents (design specs, long requirements), use HTTP POST directly "
-                            "to avoid LLM token limits — same validation, same pipeline."
+                            "Write the document as a local file first, then POST its content — "
+                            "this keeps document content out of LLM context (zero token cost)."
                         ),
-                        "example_mcp": {
-                            "tool": "push_document",
-                            "args": {
-                                "project_id": "<project_id from step 1>",
-                                "doc_id": "<project_id>/requirement",
-                                "content": "## Requirements\n\n...",
-                            },
-                        },
-                        "example_http": {
+                        "example": {
                             "method": "POST",
                             "url": "http://localhost:10086/api/documents",
                             "headers": {"Content-Type": "application/json"},
@@ -1104,10 +1030,10 @@ class ToolHandler:
                             ),
                         },
                         "after_push": (
-                            "The push_document response contains a 'nexus_state_update' field. "
+                            "The HTTP response contains a 'nexus_state_update' field. "
                             "Merge the 'entry' into .kiro/nexus-state.json immediately. "
                             "This is your local version anchor — like .git/refs — so future sessions "
-                            "can detect drift and avoid redundant full-content pushes."
+                            "can detect drift and send base_version with subsequent pushes."
                         ),
                     },
                 ],

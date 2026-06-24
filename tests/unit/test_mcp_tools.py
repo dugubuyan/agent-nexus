@@ -12,6 +12,7 @@ import pytest
 from agent_nexus.mcp.dependencies import ServiceContainer
 from agent_nexus.mcp.tools import ToolHandler
 from agent_nexus.models.entities import Notification, ProjectSpace, SubProject, Task
+from agent_nexus.services.schemas import PushRequest
 
 
 # ---------------------------------------------------------------------------
@@ -51,43 +52,16 @@ def make_handler(db_session, tmp_docs_root) -> ToolHandler:
     return ToolHandler(container)
 
 
-# ---------------------------------------------------------------------------
-# push_document
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_push_document_valid_project(db_session, tmp_docs_root):
-    space = make_space(db_session)
-    sp = make_subproject(db_session, space.id)
-    handler = make_handler(db_session, tmp_docs_root)
-
-    doc_id = f"{sp.id}/design"
-    result = await handler.push_document(sp.id, doc_id, "# Design\nContent here")
-
-    assert "error" not in result
-    assert result["version"] == 1
-    assert result["doc_id"] == doc_id
-
-
-@pytest.mark.asyncio
-async def test_push_document_invalid_project_returns_unauthorized(db_session, tmp_docs_root):
-    handler = make_handler(db_session, tmp_docs_root)
-
-    result = await handler.push_document("nonexistent-id", "some/design", "content")
-
-    assert result["error"] == "UNAUTHORIZED"
-
-
-@pytest.mark.asyncio
-async def test_push_document_archived_space_returns_space_archived(db_session, tmp_docs_root):
-    space = make_space(db_session, status="archived")
-    sp = make_subproject(db_session, space.id)
-    handler = make_handler(db_session, tmp_docs_root)
-
-    result = await handler.push_document(sp.id, f"{sp.id}/design", "# Content")
-
-    assert result["error"] == "SPACE_ARCHIVED"
+def push_doc(handler, project_id, doc_id, content, space_id=None):
+    """Push a document directly via DocumentService (test helper)."""
+    sp = handler._c.db.query(SubProject).filter(SubProject.id == project_id).first()
+    req = PushRequest(
+        doc_id=doc_id,
+        content=content,
+        pushed_by=project_id,
+        project_space_id=sp.project_space_id,
+    )
+    return handler._c.document_service.push(req)
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +76,7 @@ async def test_get_document_valid_project_returns_document(db_session, tmp_docs_
     handler = make_handler(db_session, tmp_docs_root)
 
     doc_id = f"{sp.id}/requirement"
-    await handler.push_document(sp.id, doc_id, "# Requirements\nSome content")
+    push_doc(handler, sp.id, doc_id, "# Requirements\nSome content")
 
     result = await handler.get_document(sp.id, doc_id)
 
@@ -274,7 +248,7 @@ async def test_get_config_returns_config_document(db_session, tmp_docs_root):
 
     # Push a config document first
     doc_id = f"{sp.id}/config/dev"
-    await handler.push_document(sp.id, doc_id, "# Dev Config\nkey=value")
+    push_doc(handler, sp.id, doc_id, "# Dev Config\nkey=value")
 
     result = await handler.get_config(sp.id, "dev")
 

@@ -20,7 +20,7 @@ For step 2, each update contains:
 If updates exist: apply changes based on `diff` and `latest_content`, then call `ack_update(project_id, update_id)`.
 
 For step 3, if `all_required_present` is false, create the missing documents listed in `required_docs`
-before proceeding with other work. Use `suggested_doc_id` as the doc_id when calling `push_document`.
+before proceeding with other work. Use `suggested_doc_id` as the doc_id when pushing via HTTP POST.
 
 ## Document Convention
 
@@ -87,8 +87,6 @@ write first, then push — just like git: write code, then commit.
    body: `{"project_id": "<pid>", "doc_id": "<pid>/<doc_type>", "content": "<file content>"}`
 3. Record the returned `version` in your nexus-state file:
    `{"<pid>/<doc_type>": {"local_version": <version>, "local_file_hint": "<doc_type>"}}`
-
-The `push_document` MCP tool also works if you have an active MCP session.
 
 ## Custom Checklist
 

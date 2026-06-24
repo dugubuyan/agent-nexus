@@ -121,26 +121,6 @@ def _get_handler() -> tuple[ToolHandler, any]:
 
 
 @mcp.tool()
-async def push_document(
-    project_id: str,
-    doc_id: str,
-    content: str,
-    metadata: dict = {},
-) -> dict:
-    """Push a new document version to the exchange center."""
-    handler, session = _get_handler()
-    try:
-        result = await handler.push_document(project_id, doc_id, content, metadata)
-        session.commit()
-        return result
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
-
-@mcp.tool()
 async def get_document(
     project_id: str,
     doc_id: str,
@@ -235,7 +215,7 @@ async def get_document_checklist(project_id: str) -> dict:
       - recommended_docs: documents that are helpful but not mandatory
       - completeness: summary string (e.g. "1/3 required docs present")
       - all_required_present: boolean — false means action is needed
-      - suggested_doc_id: the doc_id to use when calling push_document to create a missing doc
+      - suggested_doc_id: the doc_id to use when pushing via HTTP POST to create a missing doc
     """
     handler, session = _get_handler()
     try:
@@ -390,7 +370,7 @@ async def publish_draft(
 
     Only applicable when a document was pushed with pushed_by="system_llm", which
     creates a draft instead of publishing immediately. In normal agent workflows
-    (where the agent calls push_document with its own project_id), documents are
+    (where the agent pushes documents via HTTP POST with its own project_id), documents are
     published automatically and this tool is not needed.
 
     Use this tool when a human or orchestration system wants to review and approve
@@ -521,8 +501,8 @@ async def planner_plan(space_id: str, description: str) -> dict:
     Human confirmation required before creating any SubProjects.
 
     The returned dict contains a list of suggested SubProjects with their
-    types, dependencies, and recommended initial documents. Use the existing
-    register_project and push_document tools to act on the proposal.
+    types, dependencies, and recommended initial documents. Use register_project
+    to create sub-projects, then push documents via HTTP POST to act on the proposal.
 
     Requirements 2.2, 4.1
     """

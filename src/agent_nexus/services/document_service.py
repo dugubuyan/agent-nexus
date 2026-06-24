@@ -206,6 +206,15 @@ class DocumentService:
         )
 
         if document is None:
+            if req.base_version is not None:
+                raise AgentNexusError(
+                    error_code="VERSION_CONFLICT",
+                    message=(
+                        f"Document '{req.doc_id}' does not exist yet. "
+                        f"Remove base_version for first push."
+                    ),
+                    details={"doc_id": req.doc_id, "base_version": req.base_version},
+                )
             document = Document(
                 id=req.doc_id,
                 project_space_id=req.project_space_id,
@@ -217,6 +226,19 @@ class DocumentService:
             )
             self._db.add(document)
             self._db.flush()
+        elif req.base_version is not None and document.latest_version != req.base_version:
+            raise AgentNexusError(
+                error_code="VERSION_CONFLICT",
+                message=(
+                    f"Version conflict: base_version={req.base_version}, "
+                    f"server latest={document.latest_version}. Pull and retry."
+                ),
+                details={
+                    "doc_id": req.doc_id,
+                    "base_version": req.base_version,
+                    "server_version": document.latest_version,
+                },
+            )
 
         new_version_num = document.latest_version + 1
 

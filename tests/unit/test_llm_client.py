@@ -90,13 +90,13 @@ class TestMakeLlmClient:
         """model 参数应传递给 OpenAIClient。"""
         with patch.object(OpenAIClient, "__init__", return_value=None) as mock_init:
             make_llm_client(provider="openai", model="gpt-4-turbo", api_key="sk-test")
-        mock_init.assert_called_once_with(model="gpt-4-turbo", api_key="sk-test")
+        mock_init.assert_called_once_with(model="gpt-4-turbo", api_key="sk-test", base_url=None)
 
     def test_model_passed_to_anthropic_client(self):
         """model 参数应传递给 AnthropicClient。"""
         with patch.object(AnthropicClient, "__init__", return_value=None) as mock_init:
             make_llm_client(provider="anthropic", model="claude-3-opus-20240229", api_key="sk-ant-test")
-        mock_init.assert_called_once_with(model="claude-3-opus-20240229", api_key="sk-ant-test")
+        mock_init.assert_called_once_with(model="claude-3-opus-20240229", api_key="sk-ant-test", base_url=None)
 
     def test_env_model_used_when_no_explicit(self, monkeypatch):
         """无显式 model 时从 PLANNER_LLM_MODEL env 读取。"""
@@ -104,7 +104,7 @@ class TestMakeLlmClient:
         monkeypatch.setenv("PLANNER_LLM_PROVIDER", "openai")
         with patch.object(OpenAIClient, "__init__", return_value=None) as mock_init:
             make_llm_client(api_key="sk-test")
-        mock_init.assert_called_once_with(model="gpt-4-env", api_key="sk-test")
+        mock_init.assert_called_once_with(model="gpt-4-env", api_key="sk-test", base_url=None)
 
 
 # ---------------------------------------------------------------------------

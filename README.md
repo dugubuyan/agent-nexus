@@ -56,7 +56,7 @@ When a backend service updates its API document, the frontend agent is automatic
 ```
 Backend Agent              AgentNexus               Frontend Agent
       │                        │                          │
-      │── push_document ──────▶│                          │
+      │── POST /api/documents ▶│                          │
       │   (api, new version)   │── notification ─────────▶│
       │                        │                          │── get_my_updates_with_context()
       │                        │◀─────────────────────────│
@@ -114,8 +114,9 @@ create_space(name="my-project")
 # Register a service
 register_project(name="backend-api", type="development", project_space_id="<space_id>")
 
-# Push a document
-push_document(project_id="<project_id>", doc_id="<project_id>/api", content="# API Spec...")
+# Push a document via HTTP POST (content stays out of LLM context)
+# curl -X POST http://localhost:10086/api/documents -H 'Content-Type: application/json' \
+#   -d '{"project_id":"<project_id>","doc_id":"<project_id>/api","content":"# API Spec..."}'
 
 # Subscribe frontend to backend's API docs
 add_subscription(subscriber_project_id="<frontend_id>", project_space_id="<space_id>", target_doc_id="<backend_id>/api")
@@ -149,7 +150,7 @@ curl -X POST http://localhost:10086/api/documents \
   }'
 ```
 
-This uses the same `DocumentService.push` pipeline as `push_document` (same validation, FTS index update, notifications) but the document content never enters LLM context — making it practical for large documents.
+This is the primary document write path. Document content travels via HTTP body — never entering LLM context — making it practical for documents of any size. Supports optional `base_version` for optimistic concurrency control (fast-forward check).
 
 ## MCP Tools
 
@@ -159,7 +160,6 @@ This uses the same `DocumentService.push` pipeline as `push_document` (same vali
 | `register_project` | Register a sub-project (service) |
 | `list_projects` | List all sub-projects in a space |
 | `list_documents` | List all documents in a sub-project |
-| `push_document` | Push a new document version (full content) |
 | `get_document` | Retrieve a document (latest or specific version) |
 | `get_my_updates_with_context` | Get unread notifications with diff + full content |
 | `ack_update` | Mark a notification as read |

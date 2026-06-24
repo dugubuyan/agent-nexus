@@ -221,10 +221,8 @@ def test_nonexistent_project_id_returns_error(client):
         "doc_id": "nonexistent/design",
         "content": "# Content",
     })
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "error" in data
-    assert data["error"] == "UNAUTHORIZED"
+    assert resp.status_code == 400
+    assert resp.json()["error"] == "UNAUTHORIZED"
 
 
 def test_pushed_doc_readable_via_document_service(client, test_session, tmp_path):
@@ -247,3 +245,106 @@ def test_pushed_doc_readable_via_document_service(client, test_session, tmp_path
     ).first()
     assert ver is not None
     assert ver.status == "published"
+
+
+# ---------------------------------------------------------------------------
+# base_version / fast-forward check
+# ---------------------------------------------------------------------------
+
+
+def test_push_with_matching_base_version_succeeds(client, test_session, tmp_path):
+    space = _make_space(test_session)
+    sp = _make_subproject(test_session, space.id)
+    doc_id = f"{sp.id}/requirement"
+
+    # First push (no base_version needed)
+    resp1 = client.post("/api/documents", json={
+        "project_id": sp.id, "doc_id": doc_id, "content": "# v1",
+    })
+    assert resp1.status_code == 200
+    assert resp1.json()["version"] == 1
+
+    # Second push with correct base_version
+    resp2 = client.post("/api/documents", json={
+        "project_id": sp.id, "doc_id": doc_id, "content": "# v2", "base_version": 1,
+    })
+    assert resp2.status_code == 200
+    assert resp2.json()["version"] == 2
+
+
+def test_push_with_stale_base_version_returns_409(client, test_session, tmp_path):
+    space = _make_space(test_session)
+    sp = _make_subproject(test_session, space.id)
+    doc_id = f"{sp.id}/design"
+
+    # Push v1 and v2
+    client.post("/api/documents", json={
+        "project_id": sp.id, "doc_id": doc_id, "content": "# v1",
+    })
+    client.post("/api/documents", json={
+        "project_id": sp.id, "doc_id": doc_id, "content": "# v2",
+    })
+
+    # Push with stale base_version=1 (server is at v2)
+    resp = client.post("/api/documents", json={
+        "project_id": sp.id, "doc_id": doc_id, "content": "# v3", "base_version": 1,
+    })
+    assert resp.status_code == 409
+    data = resp.json()
+    assert data["error"] == "VERSION_CONFLICT"
+    assert data["details"]["server_version"] == 2
+    assert data["details"]["base_version"] == 1
+
+
+def test_push_with_base_version_on_new_doc_returns_409(client, test_session, tmp_path):
+    space = _make_space(test_session)
+    sp = _make_subproject(test_session, space.id)
+    doc_id = f"{sp.id}/api"
+
+    # First push with base_version (doc doesn't exist yet)
+    resp = client.post("/api/documents", json={
+        "project_id": sp.id, "doc_id": doc_id, "content": "# v1", "base_version": 0,
+    })
+    assert resp.status_code == 409
+    assert resp.json()["error"] == "VERSION_CONFLICT"
+
+
+def test_push_without_base_version_skips_check(client, test_session, tmp_path):
+    space = _make_space(test_session)
+    sp = _make_subproject(test_session, space.id)
+    doc_id = f"{sp.id}/requirement"
+
+    # Push v1
+    client.post("/api/documents", json={
+        "project_id": sp.id, "doc_id": doc_id, "content": "# v1",
+    })
+
+    # Push v2 without base_version (last writer wins)
+    resp = client.post("/api/documents", json={
+        "project_id": sp.id, "doc_id": doc_id, "content": "# v2 overwrite",
+    })
+    assert resp.status_code == 200
+    assert resp.json()["version"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Archived space rejection
+# ---------------------------------------------------------------------------
+
+
+def test_archived_space_returns_400(client, test_session, tmp_path):
+    space = ProjectSpace(
+        id=str(uuid.uuid4()), name="archived", status="archived",
+        created_at=datetime.now(timezone.utc),
+    )
+    test_session.add(space)
+    test_session.flush()
+    sp = _make_subproject(test_session, space.id)
+
+    resp = client.post("/api/documents", json={
+        "project_id": sp.id,
+        "doc_id": f"{sp.id}/requirement",
+        "content": "# Content",
+    })
+    assert resp.status_code == 400
+    assert resp.json()["error"] == "SPACE_ARCHIVED"

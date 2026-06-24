@@ -22,6 +22,7 @@ from agent_nexus.models import Base, ProjectSpace
 from agent_nexus.services.document_service import DocumentService
 from agent_nexus.services.audit_log_service import AuditLogService
 from agent_nexus.services.notification_service import NotificationService
+from agent_nexus.search.fts import ensure_fts_table
 from agent_nexus.services.project_service import ProjectService
 from agent_nexus.services.schemas import PushRequest
 from agent_nexus.services.subscription_service import SubscriptionService
@@ -47,6 +48,7 @@ def _make_db():
         cursor.close()
 
     Base.metadata.create_all(engine)
+    ensure_fts_table(engine)
     SessionLocal = sessionmaker(bind=engine)
     session = SessionLocal()
     return session, engine
@@ -282,50 +284,6 @@ def test_prop_space_data_isolation_tasks(num_tasks: int):
         assert len(tasks_a) == num_tasks, (
             f"Space A should have {num_tasks} tasks, got {len(tasks_a)}"
         )
-    finally:
-        session.close()
-        engine.dispose()
-
-
-# ---------------------------------------------------------------------------
-# Property 26: 归档状态拒绝写入
-# ---------------------------------------------------------------------------
-
-
-@settings(max_examples=100)
-@given(content_suffix=st.text(min_size=1, max_size=50))
-def test_prop_archived_space_rejects_push_document(content_suffix: str):
-    """
-    Property 26: 归档状态拒绝写入 — push_document
-
-    For any archived Project_Space, push_document via MCP must return
-    SPACE_ARCHIVED error.
-
-    **Validates: Requirements 10.6, 10.7**
-    """
-    import asyncio
-
-    session, engine = _make_db()
-    try:
-        with tempfile.TemporaryDirectory() as docs_root:
-            # Create an archived space and register a subproject
-            space = _create_space(session, "archived-space", status="archived")
-            sub_id = _register_subproject(session, space.id)
-
-            container = ServiceContainer(db_session=session, docs_root=docs_root)
-            handler = ToolHandler(container)
-
-            result = asyncio.get_event_loop().run_until_complete(
-                handler.push_document(
-                    project_id=sub_id,
-                    doc_id=f"{sub_id}/requirement",
-                    content=f"# Content {content_suffix}",
-                )
-            )
-            assert isinstance(result, dict), "push_document must return a dict"
-            assert result.get("error") == "SPACE_ARCHIVED", (
-                f"Expected SPACE_ARCHIVED for archived space, got {result}"
-            )
     finally:
         session.close()
         engine.dispose()

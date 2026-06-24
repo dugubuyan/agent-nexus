@@ -17,7 +17,9 @@ from jinja2 import Environment, FileSystemLoader
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
+from agent_nexus.models.entities import ProjectSpace, SubProject
 from agent_nexus.services.errors import AgentNexusError
+from agent_nexus.services.schemas import PushRequest
 
 # Jinja2 environment — loaded once at module import time
 _TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
@@ -37,14 +39,20 @@ def _json_response(data) -> JSONResponse:
         content=json.loads(json.dumps(data, default=_default_serializer))
     )
 
-# Error codes that map to 404 status
+# Error codes that map to specific HTTP status codes
 _NOT_FOUND_CODES = {"DOC_NOT_FOUND", "VERSION_NOT_FOUND"}
+_CONFLICT_CODES = {"VERSION_CONFLICT"}
 
 
 def _error_response(exc: AgentNexusError) -> JSONResponse:
-    status_code = 404 if exc.error_code in _NOT_FOUND_CODES else 400
+    if exc.error_code in _NOT_FOUND_CODES:
+        status_code = 404
+    elif exc.error_code in _CONFLICT_CODES:
+        status_code = 409
+    else:
+        status_code = 400
     return JSONResponse(
-        {"error": exc.error_code, "message": exc.message},
+        {"error": exc.error_code, "message": exc.message, "details": exc.details},
         status_code=status_code,
     )
 
@@ -270,7 +278,7 @@ def register_web_routes(mcp, get_handler) -> None:
             session.close()
 
     # ------------------------------------------------------------------
-    # POST /api/documents  →  带外全量写入（零 LLM token，复用 push 流水线）
+    # POST /api/documents  →  带外全量写入（零 LLM token，直接调 DocumentService）
     # ------------------------------------------------------------------
 
     @mcp.custom_route("/api/documents", methods=["POST"])
@@ -278,10 +286,12 @@ def register_web_routes(mcp, get_handler) -> None:
         """
         Out-of-band full-content document write endpoint.
 
-        Accepts full document content via HTTP body — not MCP tool-call params —
-        so large documents incur zero LLM token cost. Delegates to the same
-        DocumentService.push pipeline used by the MCP push_document tool
-        (same validation, archive check, FTS update, notification pipeline).
+        This is the ONLY write path for documents. Content travels via HTTP body
+        (not MCP tool-call params), so large documents incur zero LLM token cost.
+
+        Accepts optional ``base_version`` for optimistic concurrency control:
+        if provided, the server rejects the push with HTTP 409 when the server's
+        latest version does not match the client's base version (fast-forward check).
         """
         try:
             body = await request.json()
@@ -300,14 +310,62 @@ def register_web_routes(mcp, get_handler) -> None:
 
         handler, session = get_handler()
         try:
-            result = await handler.push_document(
-                body["project_id"],
-                body["doc_id"],
-                body["content"],
-                body.get("metadata", {}),
+            project_id = body["project_id"]
+
+            subproject = (
+                handler._c.db.query(SubProject)
+                .filter(SubProject.id == project_id)
+                .first()
             )
+            if subproject is None:
+                return _error_response(AgentNexusError(
+                    error_code="UNAUTHORIZED",
+                    message=f"project_id '{project_id}' does not exist.",
+                    details={"project_id": project_id},
+                ))
+
+            space = (
+                handler._c.db.query(ProjectSpace)
+                .filter(ProjectSpace.id == subproject.project_space_id)
+                .first()
+            )
+            if space is not None and space.status == "archived":
+                return _error_response(AgentNexusError(
+                    error_code="SPACE_ARCHIVED",
+                    message="Project space is archived. Write operations are not allowed.",
+                    details={"project_space_id": subproject.project_space_id},
+                ))
+
+            req = PushRequest(
+                doc_id=body["doc_id"],
+                content=body["content"],
+                pushed_by=project_id,
+                project_space_id=subproject.project_space_id,
+                metadata=body.get("metadata", {}),
+                base_version=body.get("base_version"),
+            )
+            result = handler._c.document_service.push(req)
             session.commit()
-            return JSONResponse(result)
+
+            out = result.model_dump()
+            out["nexus_state_update"] = {
+                "instruction": (
+                    "Update your local .kiro/nexus-state.json immediately. "
+                    "This file is your version anchor — like .git/refs — and enables "
+                    "conflict detection on subsequent pushes."
+                ),
+                "file": ".kiro/nexus-state.json",
+                "operation": "merge",
+                "entry": {
+                    "doc_id": result.doc_id,
+                    "local_version": result.version,
+                    "local_file_hint": body["doc_id"].split("/", 1)[-1],
+                },
+            }
+            return _json_response(out)
+        except AgentNexusError as exc:
+            session.rollback()
+            return _error_response(exc)
         except Exception:
             session.rollback()
             raise

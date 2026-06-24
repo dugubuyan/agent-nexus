@@ -20,6 +20,7 @@ from agent_nexus.models import Base, ProjectSpace
 from agent_nexus.services.audit_log_service import AuditLogService
 from agent_nexus.services.document_service import DocumentService, VALID_DOC_TYPES, VALID_CONFIG_VARIANTS
 from agent_nexus.services.errors import AgentNexusError
+from agent_nexus.search.fts import ensure_fts_table
 from agent_nexus.services.schemas import PushRequest
 
 
@@ -38,6 +39,7 @@ def _make_engine():
         cursor.close()
 
     Base.metadata.create_all(engine)
+    ensure_fts_table(engine)
     return engine
 
 
