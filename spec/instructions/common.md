@@ -10,7 +10,7 @@ At the start of every session:
 
 1. Call `get_project_id_by_name(name="{{PROJECT_NAME}}", project_space_id="{{PROJECT_SPACE_ID}}")` to resolve your project_id.
 2. Call `get_my_updates_with_context(project_id=<project_id>)` to check for pending document changes.
-3. Call `get_document_checklist(project_id=<project_id>)` to see which documents are missing for your current stage.
+3. Call `get_document_checklist(project_id=<project_id>)` to see which documents are missing for your project.
 
 For step 2, each update contains:
 - `update_id`: acknowledge with `ack_update` after processing
@@ -90,7 +90,7 @@ write first, then push — just like git: write code, then commit.
 
 ## Custom Checklist
 
-Declare what YOUR project needs by pushing a checklist document early in the `design` stage:
+Declare what YOUR project needs by pushing a checklist document early:
 
   doc_id  = `{{PROJECT_ID}}/task/checklist`
   content = Markdown with `## Required` and `## Recommended` sections,

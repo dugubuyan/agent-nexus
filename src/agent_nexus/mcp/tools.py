@@ -189,32 +189,19 @@ class ToolHandler:
     # Tool: get_document_checklist  (read)
     # ------------------------------------------------------------------
 
-    # Built-in checklist rules indexed by (project_type, stage).
-    # "*" as project_type means "any type not explicitly listed".
-    # Values are doc_type prefixes; prefix matching is used when checking
-    # existing docs (e.g. "config" matches config/dev, config/prod, etc.)
-    # Full variant paths like "runbook/deploy" are also supported and matched exactly.
-    _BUILTIN_CHECKLISTS: dict = {
-        # Minimal universal fallback — applies to any (type, stage) combination
-        # not covered by a custom task/checklist document.
-        #
-        # Rationale: the authoritative "what documents does THIS project need at
-        # THIS stage" answer should come from the project itself via a
-        # task/checklist document (pushed as doc_id="{project_id}/task/checklist").
-        # This hardcoded table is intentionally kept minimal — just enough to
-        # give a new project a starting signal on day one.
-        #
-        # To define richer rules, push:
-        #   doc_id   = "{project_id}/task/checklist"
-        #   content  = Markdown with ## Required and ## Recommended sections,
-        #              each containing "- doc_type: description" list items.
-        #
-        # See §14 of docs/agentnexus-v4-ideas.md for the long-term direction.
-        ("*", "design"):      {"required": ["requirement"],  "recommended": ["design"]},
-        ("*", "development"): {"required": ["requirement"],  "recommended": ["design", "api", "task"]},
-        ("*", "testing"):     {"required": ["requirement"],  "recommended": ["test-plan", "config"]},
-        ("*", "deployment"):  {"required": ["requirement"],  "recommended": ["config", "runbook", "changelog"]},
-        ("*", "upgrade"):     {"required": ["requirement"],  "recommended": ["changelog", "config"]},
+    # Minimal stage-agnostic fallback — applies when no custom task/checklist
+    # document exists for the project.
+    #
+    # Stage is NOT a document classifier. The authoritative "what documents
+    # does this project need" answer comes from the project itself via a
+    # task/checklist document (doc_id="{project_id}/task/checklist"). This
+    # fallback is intentionally minimal — just enough to nudge a new project
+    # toward writing its first requirement document.
+    #
+    # See §14 of docs/agentnexus-v4-ideas.md for the long-term direction.
+    _BUILTIN_FALLBACK: dict = {
+        "required": ["requirement"],
+        "recommended": [],
     }
 
     _DOC_TYPE_DESCRIPTIONS: dict = {
@@ -280,13 +267,15 @@ class ToolHandler:
                     })
         return result
 
-    def _get_builtin_rules(self, project_type: str, stage: str) -> dict:
-        """Return the built-in fallback rules for the given stage.
+    def _get_builtin_rules(self) -> dict:
+        """Return the minimal universal fallback rules.
 
-        All project types now share the same minimal universal fallback.
-        For project-specific rules, push a task/checklist document instead.
+        Projects should declare what documents they need via a
+        task/checklist document; this fallback only ensures a new project
+        gets a signal to write its first requirement document.
+        See v4-ideas §14 for the rationale.
         """
-        return self._BUILTIN_CHECKLISTS.get(("*", stage), {"required": [], "recommended": []})
+        return self._BUILTIN_FALLBACK
 
     async def get_document_checklist(self, project_id: str) -> dict:
         """
@@ -359,7 +348,7 @@ class ToolHandler:
                 recommended_spec = parsed["recommended"]
                 checklist_source = "custom"
             else:
-                rules = self._get_builtin_rules(subproject.type, subproject.stage)
+                rules = self._get_builtin_rules()
                 required_spec = [
                     {"doc_type": dt, "description": self._DOC_TYPE_DESCRIPTIONS.get(dt, "")}
                     for dt in rules.get("required", [])
@@ -411,7 +400,6 @@ class ToolHandler:
                 "project_id": project_id,
                 "project_name": subproject.name,
                 "project_type": subproject.type,
-                "stage": subproject.stage,
                 "checklist_source": checklist_source,
                 "required_docs": required_entries,
                 "recommended_docs": recommended_entries,
@@ -420,11 +408,11 @@ class ToolHandler:
             }
             if checklist_source == "builtin":
                 result["hint"] = (
-                    f"Using built-in checklist for type='{subproject.type}', stage='{subproject.stage}'. "
+                    f"Using built-in fallback checklist (no custom task/checklist found for this project). "
                     f"To create missing documents, use the HTTP POST endpoint: "
                     f'curl -X POST http://localhost:10086/api/documents -H "Content-Type: application/json" '
                     f'-d \'{{"project_id": "{project_id}", "doc_id": "<suggested_doc_id>", "content": "<content>"}}\'. '
-                    f"To customize this checklist, push a document with doc_id='{checklist_doc_id}' "
+                    f"To define your own checklist, push a document with doc_id='{checklist_doc_id}' "
                     "containing ## Required and ## Recommended Markdown sections."
                 )
             return result

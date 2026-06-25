@@ -204,14 +204,16 @@ async def get_document_checklist(project_id: str) -> dict:
     """
     Return the document completeness checklist for the given project.
 
-    Based on the project's current lifecycle stage, reports which documents
-    are required or recommended, and which are present or missing.
+    Uses the project's custom task/checklist document if present
+    (doc_id = "{project_id}/task/checklist"), otherwise falls back to a
+    minimal universal rule. Stage does not affect the checklist
+    (see v4-ideas §14).
 
     Call this at session start alongside get_my_updates_with_context to know
     what documents need to be created before proceeding with work.
 
     Returns:
-      - required_docs: documents that must exist for the current stage
+      - required_docs: documents that must exist
       - recommended_docs: documents that are helpful but not mandatory
       - completeness: summary string (e.g. "1/3 required docs present")
       - all_required_present: boolean — false means action is needed
@@ -335,7 +337,11 @@ async def register_project(
     Register a new sub-project in the given project space.
 
     type: development | testing | ops | infra | shared | ...
-    stage: design | development | testing | deployment | upgrade
+    stage: lifecycle marker — design | development | testing | deployment | upgrade.
+           Informational only; does NOT determine which documents the project
+           needs (use a task/checklist document for that). Default "design"
+           is fine for most new projects; transitioning stages later only
+           triggers milestone snapshots, not document classification.
     """
     handler, session = _get_handler()
     try:
@@ -368,7 +374,7 @@ async def publish_draft(
     """
     Confirm a draft document version, publishing it and triggering notifications.
 
-    Only applicable when a document was pushed with pushed_by="system_llm", which
+    Only applicable when a document was pushed with actor="system_llm", which
     creates a draft instead of publishing immediately. In normal agent workflows
     (where the agent pushes documents via HTTP POST with its own project_id), documents are
     published automatically and this tool is not needed.

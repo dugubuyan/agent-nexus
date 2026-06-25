@@ -21,7 +21,7 @@ Each service registers as a sub-project, publishes versioned Markdown documents 
 - **Versioned document store** — SHA-256 dedup, full version history, per-service namespacing
 - **Publish-subscribe notifications** — subscribe by exact doc ID or doc type
 - **Diff-aware updates** — `get_my_updates_with_context` returns unified diff + full content in one call
-- **Lifecycle stage tracking** — explicit `design → development → testing → deployment → upgrade` per service, with milestone snapshots on transitions
+- **Lifecycle event hook** — `stage` field marks the project's current lifecycle phase (`design / development / testing / deployment / upgrade`); transitions trigger milestone snapshots. Informational only — does not determine which documents a project needs (see v4-ideas §14)
 - **Service-Driven Agent Onboarding (SDAOP)** — `generate_instruction_file` auto-generates IDE steering files (AGENTS.md, CLAUDE.md, Kiro steering, Cursor rules) for any connecting agent
 - **MCP HTTP server** — streamable-HTTP transport, multiple agents connect simultaneously
 - **Out-of-band write endpoint** — `POST /api/documents` accepts full content via HTTP body (zero LLM token cost)
