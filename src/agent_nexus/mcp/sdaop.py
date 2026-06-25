@@ -25,6 +25,24 @@ _SPEC_DIR = os.path.join(
 _INSTRUCTIONS_DIR = os.path.join(_SPEC_DIR, "instructions")
 
 
+def get_public_url() -> str:
+    """Return the outward-facing base URL this server tells clients to use.
+
+    Reads ``AGENT_NEXUS_PUBLIC_URL`` first. Falls back to
+    ``http://localhost:<AGENT_NEXUS_PORT or 10086>`` for local development.
+
+    The trailing slash is stripped. Examples:
+      - http://localhost:10086
+      - http://47.100.240.111:10086
+      - https://nexus.example.com
+    """
+    raw = os.environ.get("AGENT_NEXUS_PUBLIC_URL")
+    if raw:
+        return raw.rstrip("/")
+    port = os.environ.get("AGENT_NEXUS_PORT", "10086")
+    return f"http://localhost:{port}"
+
+
 def _read(path: str) -> str:
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
@@ -41,9 +59,11 @@ def compute_sdaop_version(client_type: str = "kiro") -> str:
       - common.md
       - the client's specific template (kiro.md / claude.md / ...)
       - push-tool.py
+      - the public URL (so an address change triggers a re-onboard)
 
-    Identical templates yield identical versions. Any edit to any of the
-    three files changes the version.
+    Identical templates and URL yield identical versions. Any edit to any
+    of the three files, or a change to the server's public URL, changes
+    the version.
     """
     clients = _clients_config()
     client_key = client_type.lower()
@@ -53,6 +73,7 @@ def compute_sdaop_version(client_type: str = "kiro") -> str:
         _read(os.path.join(_INSTRUCTIONS_DIR, "common.md")),
         _read(os.path.join(_INSTRUCTIONS_DIR, config["template"])),
         _read(os.path.join(_SPEC_DIR, "push-tool.py")),
+        get_public_url(),
     ]
     combined = "\n---\n".join(parts).encode("utf-8")
     # Short prefix is enough for collision-resistant equality checks at

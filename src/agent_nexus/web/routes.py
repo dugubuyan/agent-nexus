@@ -76,17 +76,21 @@ def register_web_routes(mcp, get_handler) -> None:
     @mcp.custom_route("/api/templates/{name:path}", methods=["GET"])
     async def api_template(request: Request) -> Response:
         from agent_nexus.mcp.server import _load_push_tool
-        from agent_nexus.mcp.sdaop import compute_sdaop_version
+        from agent_nexus.mcp.sdaop import compute_sdaop_version, get_public_url
         name = request.path_params["name"]
         if name == "push-tool.py":
             body = _load_push_tool()
-            # Pull the requested client_type from a query param (defaults to
-            # kiro). The version is the same hash regardless of client type
-            # only when the steering template differs — keep the parameter
-            # for future flexibility.
             client_type = request.query_params.get("client_type", "kiro")
+            public_url = get_public_url()
             version = compute_sdaop_version(client_type)
-            header = f"# sdaop_version: {version}\n# client_type: {client_type}\n\n"
+            # Render the {{SERVER_URL}} placeholder so the downloaded script
+            # is ready to run without manual URL editing.
+            body = body.replace("{{SERVER_URL}}", public_url)
+            header = (
+                f"# sdaop_version: {version}\n"
+                f"# client_type: {client_type}\n"
+                f"# server_url: {public_url}\n\n"
+            )
             return Response(content=header + body, media_type="text/x-python")
         return JSONResponse(
             {"error": "NOT_FOUND", "message": f"Template '{name}' not found. Available: push-tool.py"},

@@ -195,3 +195,76 @@ def test_push_tool_template_read_base_version_skips_non_dict_entries(tmp_path):
     assert read_base_version("proj/doc") == 7
     # Missing doc → returns None
     assert read_base_version("proj/missing") is None
+
+
+# ---------------------------------------------------------------------------
+# Public URL handling (single source of truth for outward-facing URL)
+# ---------------------------------------------------------------------------
+
+
+def test_get_public_url_uses_env_var(monkeypatch):
+    monkeypatch.setenv("AGENT_NEXUS_PUBLIC_URL", "http://47.100.240.111:10086")
+    assert sdaop.get_public_url() == "http://47.100.240.111:10086"
+
+
+def test_get_public_url_strips_trailing_slash(monkeypatch):
+    monkeypatch.setenv("AGENT_NEXUS_PUBLIC_URL", "https://nexus.example.com/")
+    assert sdaop.get_public_url() == "https://nexus.example.com"
+
+
+def test_get_public_url_falls_back_to_localhost(monkeypatch):
+    monkeypatch.delenv("AGENT_NEXUS_PUBLIC_URL", raising=False)
+    monkeypatch.delenv("AGENT_NEXUS_PORT", raising=False)
+    assert sdaop.get_public_url() == "http://localhost:10086"
+
+
+def test_get_public_url_respects_port_env(monkeypatch):
+    monkeypatch.delenv("AGENT_NEXUS_PUBLIC_URL", raising=False)
+    monkeypatch.setenv("AGENT_NEXUS_PORT", "20086")
+    assert sdaop.get_public_url() == "http://localhost:20086"
+
+
+def test_sdaop_version_changes_when_public_url_changes(monkeypatch):
+    """Switching the server's outward URL must bump the version hash so
+    existing clients re-onboard with a fresh URL."""
+    monkeypatch.setenv("AGENT_NEXUS_PUBLIC_URL", "http://localhost:10086")
+    v_local = sdaop.compute_sdaop_version("kiro")
+
+    monkeypatch.setenv("AGENT_NEXUS_PUBLIC_URL", "http://47.100.240.111:10086")
+    v_cloud = sdaop.compute_sdaop_version("kiro")
+
+    assert v_local != v_cloud
+
+
+@pytest.mark.asyncio
+async def test_generate_instruction_file_renders_server_url(monkeypatch):
+    """Steering file must use AGENT_NEXUS_PUBLIC_URL for any {{SERVER_URL}} occurrences."""
+    from agent_nexus.mcp.dependencies import ServiceContainer
+    from agent_nexus.mcp.tools import ToolHandler
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from agent_nexus.models import Base
+
+    monkeypatch.setenv("AGENT_NEXUS_PUBLIC_URL", "http://47.100.240.111:10086")
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    with tempfile.TemporaryDirectory() as tmp_root:
+        container = ServiceContainer(db_session=session, docs_root=tmp_root)
+        handler = ToolHandler(container)
+        result = await handler.generate_steering_file(
+            project_name="test-project",
+            project_space_id="00000000-0000-0000-0000-000000000000",
+            client_type="kiro",
+        )
+
+    content = result["file_content"]
+    # No unrendered placeholder
+    assert "{{SERVER_URL}}" not in content
+    # Public URL appears in steering content (MCP endpoint line, curl examples)
+    assert "http://47.100.240.111:10086" in content
+    # push_tool_refresh.url uses public URL
+    assert result["push_tool_refresh"]["url"] == "http://47.100.240.111:10086/api/templates/push-tool.py"

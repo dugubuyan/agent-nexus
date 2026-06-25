@@ -44,7 +44,7 @@ Download nexus_push.py — a workspace-level tool for pushing documents via HTTP
 Save it to a location appropriate for your client (e.g. `.kiro/nexus_push.py` for Kiro):
 
 ```
-curl -o <push_script_path> http://localhost:10086/api/templates/push-tool.py
+curl -o <push_script_path> {{SERVER_URL}}/api/templates/push-tool.py
 ```
 
 Then open the script and replace `{{PROJECT_ID}}` with your project_id from Step 1.
@@ -67,7 +67,7 @@ python <push_script_path> design docs/design.md
 # push any other doc types you have: api, config/dev, task, etc.
 ```
 
-The script reads the file content, POSTs it to `http://localhost:10086/api/documents`,
+The script reads the file content, POSTs it to `{{SERVER_URL}}/api/documents`,
 and updates your local nexus-state file automatically.
 
 **Do NOT hardcode document content inside the script or pass it as a string.**

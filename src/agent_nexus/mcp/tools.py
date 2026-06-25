@@ -407,10 +407,12 @@ class ToolHandler:
                 "all_required_present": present_required == total_required,
             }
             if checklist_source == "builtin":
+                from agent_nexus.mcp.sdaop import get_public_url
+                public_url = get_public_url()
                 result["hint"] = (
                     f"Using built-in fallback checklist (no custom task/checklist found for this project). "
                     f"To create missing documents, use the HTTP POST endpoint: "
-                    f'curl -X POST http://localhost:10086/api/documents -H "Content-Type: application/json" '
+                    f'curl -X POST {public_url}/api/documents -H "Content-Type: application/json" '
                     f'-d \'{{"project_id": "{project_id}", "doc_id": "<suggested_doc_id>", "content": "<content>"}}\'. '
                     f"To define your own checklist, push a document with doc_id='{checklist_doc_id}' "
                     "containing ## Required and ## Recommended Markdown sections."
@@ -434,7 +436,9 @@ class ToolHandler:
         import os
         from datetime import datetime, timezone
 
-        from agent_nexus.mcp.sdaop import compute_sdaop_version
+        from agent_nexus.mcp.sdaop import compute_sdaop_version, get_public_url
+
+        public_url = get_public_url()
 
         spec_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
@@ -470,10 +474,13 @@ class ToolHandler:
             .replace("{{PROJECT_SPACE_ID}}", project_space_id)
             .replace("{{PROJECT_ID}}", f"<your_project_id>")
             .replace("{{PUSH_SCRIPT_PATH}}", push_script_path)
+            .replace("{{SERVER_URL}}", public_url)
         )
 
         # Render client template, injecting common content
         content = template_content.replace("{{COMMON}}", common_rendered)
+        # Also catch SERVER_URL occurrences in client-specific templates
+        content = content.replace("{{SERVER_URL}}", public_url)
 
         # Inject SDAOP version metadata as YAML frontmatter so agents and
         # the version-check step at session start can read it. If the client
@@ -510,7 +517,7 @@ class ToolHandler:
                     "SDAOP protocol and may have changed too. Download it and "
                     "preserve your PROJECT_ID substitution."
                 ),
-                "url": "http://localhost:10086/api/templates/push-tool.py",
+                "url": f"{public_url}/api/templates/push-tool.py",
                 "target_file": push_script_path,
             },
             "nexus_state_update": {
@@ -999,6 +1006,8 @@ class ToolHandler:
         space_id is optional: if omitted, returns ALL spaces and their projects.
         space_id may be a UUID or a space name (human-readable).
         """
+        from agent_nexus.mcp.sdaop import get_public_url
+        _public_url = get_public_url()
         _ONBOARDING = {
             "onboarding": {
                 "note": (
@@ -1052,7 +1061,7 @@ class ToolHandler:
                         ),
                         "example": {
                             "method": "POST",
-                            "url": "http://localhost:10086/api/documents",
+                            "url": f"{_public_url}/api/documents",
                             "headers": {"Content-Type": "application/json"},
                             "body": {
                                 "project_id": "<project_id from step 1>",
@@ -1060,7 +1069,7 @@ class ToolHandler:
                                 "content": "## Requirements\n\n...",
                             },
                             "curl": (
-                                "curl -X POST http://localhost:10086/api/documents "
+                                f"curl -X POST {_public_url}/api/documents "
                                 "-H 'Content-Type: application/json' "
                                 "-d '{\"project_id\":\"<pid>\",\"doc_id\":\"<pid>/requirement\",\"content\":\"## Requirements\\n\\n...\"}'"
                             ),

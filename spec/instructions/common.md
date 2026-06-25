@@ -2,7 +2,7 @@
 
 - project_name: `{{PROJECT_NAME}}`
 - project_space_id: `{{PROJECT_SPACE_ID}}`
-- MCP endpoint: `http://localhost:10086/mcp`
+- MCP endpoint: `{{SERVER_URL}}/mcp`
 
 ## Initialization Workflow
 
@@ -72,7 +72,7 @@ generated from. Compare it against `get_sdaop_version()` at session start
 Download the push script to your workspace (one-time setup):
 
 ```
-curl -o {{PUSH_SCRIPT_PATH}} http://localhost:10086/api/templates/push-tool.py
+curl -o {{PUSH_SCRIPT_PATH}} {{SERVER_URL}}/api/templates/push-tool.py
 ```
 
 Then open `{{PUSH_SCRIPT_PATH}}` and replace `{{PROJECT_ID}}` with your actual project_id.
@@ -93,7 +93,7 @@ write first, then push — just like git: write code, then commit.
 
 1. Write your document as a local Markdown file
 2. POST the file content to AgentNexus:
-   `POST http://localhost:10086/api/documents`
+   `POST {{SERVER_URL}}/api/documents`
    body: `{"project_id": "<pid>", "doc_id": "<pid>/<doc_type>", "content": "<file content>"}`
 3. Record the returned `version` in your nexus-state file:
    `{"<pid>/<doc_type>": {"local_version": <version>, "local_file_hint": "<doc_type>"}}`
