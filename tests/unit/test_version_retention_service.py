@@ -49,7 +49,7 @@ def _make_version(
         project_space_id=document.project_space_id,
         version=version_num,
         content_hash=str(uuid.uuid4()),
-        pushed_by="test-project",
+        actor="test-project",
         status=status,
         is_milestone=is_milestone,
         milestone_stage=None,

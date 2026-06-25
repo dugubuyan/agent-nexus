@@ -213,14 +213,14 @@ def restore_space(
             if not content:
                 continue
 
-            pushed_by = ver.get("pushed_by", "migration")
-            if pushed_by.startswith("agent:"):
-                pushed_by = "migration"
+            actor = ver.get("actor") or ver.get("pushed_by", "migration")  # accept old snapshot format
+            if actor.startswith("agent:"):
+                actor = "migration"
 
             req = PushRequest(
                 doc_id=target_doc_id,
                 content=content,
-                pushed_by=pushed_by,
+                actor=actor,
                 project_space_id=target_space_id,
                 metadata={},
             )

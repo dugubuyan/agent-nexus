@@ -43,7 +43,7 @@ class SubProject(Base):
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)  # development | testing | ops | ...
-    stage: Mapped[str] = mapped_column(String, nullable=False)  # design | development | testing | deployment | upgrade
+    stage: Mapped[str] = mapped_column(String, nullable=False)  # informational lifecycle marker (design | development | testing | deployment | upgrade); see v4-ideas §14
     stage_updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
@@ -87,7 +87,7 @@ class DocumentVersion(Base):
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False)  # incremental version number
     content_hash: Mapped[str] = mapped_column(String, nullable=False)  # SHA-256 for dedup
-    pushed_by: Mapped[str] = mapped_column(String, nullable=False)  # project_id or "agent:*"
+    actor: Mapped[str] = mapped_column(String, nullable=False)  # actor label: subproject_id for in-boundary writes, or "agent:<role>" for cross-boundary actors (Planner, etc). See v4-ideas §18.
     status: Mapped[str] = mapped_column(String, nullable=False, default="published")  # draft | published
     is_milestone: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     milestone_stage: Mapped[Optional[str]] = mapped_column(String, nullable=True)

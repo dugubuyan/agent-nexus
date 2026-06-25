@@ -39,11 +39,11 @@ def _make_service(db_session, tmp_docs_root, **kwargs):
     )
 
 
-def _push(svc, doc_id, content, pushed_by="agent-1", project_space_id="space-1", metadata=None):
+def _push(svc, doc_id, content, actor="agent-1", project_space_id="space-1", metadata=None):
     req = PushRequest(
         doc_id=doc_id,
         content=content,
-        pushed_by=pushed_by,
+        actor=actor,
         project_space_id=project_space_id,
         metadata=metadata or {},
     )
@@ -52,7 +52,7 @@ def _push(svc, doc_id, content, pushed_by="agent-1", project_space_id="space-1",
 
 def _push_draft(svc, doc_id, content, project_space_id):
     """Push a document as agent:planner (creates a draft version)."""
-    return _push(svc, doc_id, content, pushed_by="agent:planner", project_space_id=project_space_id)
+    return _push(svc, doc_id, content, actor="agent:planner", project_space_id=project_space_id)
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +135,7 @@ def test_publish_draft_already_published_raises_invalid_status_transition(
 ):
     svc = _make_service(db_session, tmp_docs_root)
     # Push as external agent → status=published
-    _push(svc, "sub1/design", "# Published", pushed_by="agent-1", project_space_id=default_space.id)
+    _push(svc, "sub1/design", "# Published", actor="agent-1", project_space_id=default_space.id)
 
     with pytest.raises(AgentNexusError) as exc_info:
         svc.publish_draft("sub1/design", version=1, project_space_id=default_space.id)
@@ -146,7 +146,7 @@ def test_publish_draft_already_published_error_message_contains_status(
     db_session, default_space, tmp_docs_root
 ):
     svc = _make_service(db_session, tmp_docs_root)
-    _push(svc, "sub1/api", "# Published", pushed_by="agent-1", project_space_id=default_space.id)
+    _push(svc, "sub1/api", "# Published", actor="agent-1", project_space_id=default_space.id)
 
     with pytest.raises(AgentNexusError) as exc_info:
         svc.publish_draft("sub1/api", version=1, project_space_id=default_space.id)

@@ -136,7 +136,7 @@ def _insert_published_doc(session, space_id, subproject_id, doc_type, content, d
         project_space_id=space_id,
         version=1,
         content_hash="abc",
-        pushed_by="test",
+        actor="test",
         status="published",
         is_milestone=False,
         pushed_at=now,
@@ -484,7 +484,7 @@ def test_push_published_document_is_searchable(fts_engine, tmp_path, space, subp
         req = PushRequest(
             doc_id=doc_id,
             content="Integration test: user authentication via JWT.",
-            pushed_by=subproject.id,
+            actor=subproject.id,
             project_space_id=space.id,
         )
         result = service.push(req)
@@ -500,7 +500,7 @@ def test_push_published_document_is_searchable(fts_engine, tmp_path, space, subp
 
 
 def test_push_draft_document_not_searchable(fts_engine, tmp_path, space, subproject):
-    """push_document with pushed_by='agent:planner' creates draft — must NOT be in FTS."""
+    """push_document with actor='agent:planner' creates draft — must NOT be in FTS."""
     connection = fts_engine.connect()
     transaction = connection.begin()
     Session = sessionmaker(bind=connection)
@@ -512,7 +512,7 @@ def test_push_draft_document_not_searchable(fts_engine, tmp_path, space, subproj
         req = PushRequest(
             doc_id=doc_id,
             content="Draft content: secret architecture proposal.",
-            pushed_by="agent:planner",
+            actor="agent:planner",
             project_space_id=space.id,
         )
         result = service.push(req)
@@ -541,7 +541,7 @@ def test_publish_draft_makes_document_searchable(fts_engine, tmp_path, space, su
         req = PushRequest(
             doc_id=doc_id,
             content="Draft: event-driven microservice design with Kafka.",
-            pushed_by="agent:planner",
+            actor="agent:planner",
             project_space_id=space.id,
         )
         push_result = service.push(req)

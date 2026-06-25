@@ -75,11 +75,11 @@ def _make_full_service(db_session, tmp_docs_root, space_id: str):
     ), notification_svc, task_svc, subscription_svc
 
 
-def _push(svc, doc_id, content, pushed_by="agent-1", project_space_id="space-1", metadata=None):
+def _push(svc, doc_id, content, actor="agent-1", project_space_id="space-1", metadata=None):
     req = PushRequest(
         doc_id=doc_id,
         content=content,
-        pushed_by=pushed_by,
+        actor=actor,
         project_space_id=project_space_id,
         metadata=metadata or {},
     )
@@ -111,7 +111,7 @@ def test_published_push_triggers_notifications_for_subscribers(
     )
 
     # Push a published document
-    _push(doc_svc, "sub1/requirement", "# Req v1", pushed_by="agent-1", project_space_id=space_id)
+    _push(doc_svc, "sub1/requirement", "# Req v1", actor="agent-1", project_space_id=space_id)
 
     # Subscriber should have an unread notification
     notifications = notification_svc.get_unread(subscriber_id, space_id)
@@ -139,7 +139,7 @@ def test_published_push_triggers_tasks_for_affected_projects(
     )
 
     # Push a requirement doc — RuleEngineAnalyzer maps requirement → testing subprojects
-    _push(doc_svc, "sub1/requirement", "# Req v1", pushed_by="agent-1", project_space_id=space_id)
+    _push(doc_svc, "sub1/requirement", "# Req v1", actor="agent-1", project_space_id=space_id)
 
     # Tasks should be generated for the testing subproject
     tasks = task_svc.get_by_doc_id("sub1/requirement", space_id)
@@ -173,7 +173,7 @@ def test_draft_push_does_not_trigger_notifications(
 
     # Push as agent:planner → draft
     result = _push(
-        doc_svc, "sub1/requirement", "# Draft req", pushed_by="agent:planner", project_space_id=space_id
+        doc_svc, "sub1/requirement", "# Draft req", actor="agent:planner", project_space_id=space_id
     )
     assert result.status == "draft"
 
@@ -201,7 +201,7 @@ def test_draft_push_does_not_trigger_tasks(
 
     # Push as agent:planner → draft
     result = _push(
-        doc_svc, "sub1/requirement", "# Draft req", pushed_by="agent:planner", project_space_id=space_id
+        doc_svc, "sub1/requirement", "# Draft req", actor="agent:planner", project_space_id=space_id
     )
     assert result.status == "draft"
 
@@ -225,7 +225,7 @@ def test_push_without_pipeline_services_succeeds(db_session, default_space, tmp_
         # No pipeline services
     )
 
-    result = _push(doc_svc, "sub1/design", "# Design", pushed_by="agent-1", project_space_id=default_space.id)
+    result = _push(doc_svc, "sub1/design", "# Design", actor="agent-1", project_space_id=default_space.id)
     assert result.version == 1
     assert result.status == "published"
 
@@ -253,8 +253,8 @@ def test_second_published_push_generates_new_notification(
         target_doc_type="requirement",
     )
 
-    _push(doc_svc, "sub1/requirement", "# v1", pushed_by="agent-1", project_space_id=space_id)
-    _push(doc_svc, "sub1/requirement", "# v2", pushed_by="agent-1", project_space_id=space_id)
+    _push(doc_svc, "sub1/requirement", "# v1", actor="agent-1", project_space_id=space_id)
+    _push(doc_svc, "sub1/requirement", "# v2", actor="agent-1", project_space_id=space_id)
 
     notifications = notification_svc.get_unread(subscriber_id, space_id)
     assert len(notifications) == 2

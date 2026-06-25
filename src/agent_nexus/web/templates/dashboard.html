@@ -856,8 +856,8 @@ async function loadDocument(docId) {
     statusBadge.textContent = status;
     statusBadge.className = `doc-badge ${status === 'published' ? 'published' : 'draft'}`;
 
-    const pushedBy = result.pushed_by ?? result.meta?.pushed_by ?? '';
-    qs('#doc-author').textContent = pushedBy ? `by: ${pushedBy}` : '';
+    const actor = result.actor ?? result.meta?.actor ?? '';
+    qs('#doc-author').textContent = actor ? `by: ${actor}` : '';
 
     meta.style.display = 'flex';
 
@@ -899,7 +899,7 @@ qs('#btn-history').addEventListener('click', async () => {
     versions.forEach(v => {
       const row = el('div', { className: 'version-item' });
       const num = el('span', { className: 'ver-num', textContent: `v${v.version}` });
-      const by = el('span', { className: 'ver-by', textContent: v.pushed_by || '—' });
+      const by = el('span', { className: 'ver-by', textContent: v.actor || '—' });
       const st = el('span', { className: `doc-badge ${v.status === 'published' ? 'published' : 'draft'}`, textContent: v.status || '' });
       const loadBtn = el('button', { className: 'ver-select-btn', textContent: 'Load' });
       loadBtn.addEventListener('click', () => {

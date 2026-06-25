@@ -138,7 +138,7 @@ def test_prop_analyzer_degradation(doc_type: str, subprojects_data, error_messag
             project_space_id=space.id,
             version=1,
             content_hash="abc123",
-            pushed_by="system",
+            actor="system",
             status="published",
             pushed_at=datetime.now(timezone.utc),
         )

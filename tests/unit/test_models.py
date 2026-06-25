@@ -111,7 +111,7 @@ def test_create_document_and_version(db_session: Session, default_space: Project
         project_space_id=default_space.id,
         version=1,
         content_hash="abc123",
-        pushed_by=sub_id,
+        actor=sub_id,
         status="published",
         is_milestone=False,
         milestone_stage=None,

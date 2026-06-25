@@ -4,7 +4,7 @@ PlannerService: optional global coordination layer for AgentNexus.
 Provides:
   - System-level read access across all spaces (no project_id restriction)
   - AI inference (chat, plan) via pluggable LLMClient
-  - Cross-boundary write via draft gate (pushed_by="agent:planner" for drafts)
+  - Cross-boundary write via draft gate (actor="agent:planner" for drafts)
 
 Design principle: Planner is an observer / coordinator; it proposes but does
 not unilaterally publish.  All document writes default to draft=True.
@@ -33,10 +33,11 @@ if TYPE_CHECKING:
 # Used in audit logs as the operator.
 SYSTEM_ACTOR = "system"
 
-# pushed_by value that triggers draft status in DocumentService._push_locked.
-# (The core logic checks pushed_by.startswith("agent:") to mark a version as
-# draft.  All agent:* actors automatically produce draft versions.)
-_DRAFT_PUSHED_BY = "agent:planner"
+# actor value that triggers draft status in DocumentService._push_locked.
+# (The core logic checks actor.startswith("agent:") to mark a version as
+# draft. All agent:* actors automatically produce draft versions.)
+# Planner is the first concretely-modeled cross-boundary Principal — see v4-ideas §18.
+_DRAFT_ACTOR = "agent:planner"
 
 # Maximum documents loaded when doc_ids is not specified for chat()
 _CHAT_MAX_DOCS = 20
@@ -260,7 +261,7 @@ class PlannerService:
         """Create a new ProjectSpace.
 
         Requirement 1.3 — writes marked with SYSTEM_ACTOR in spirit;
-        ProjectSpace has no ``pushed_by`` field so we just create it directly.
+        ProjectSpace has no ``actor`` field so we just create it directly.
         """
         space = ProjectSpace(
             id=str(uuid.uuid4()),
@@ -349,22 +350,28 @@ class PlannerService:
     ) -> dict:
         """Push a document version on behalf of the Planner.
 
+        In v4's three-layer model (Principal/SubProject/Document, see
+        v4-ideas §18), Planner is the first concretely-modeled
+        cross-boundary Principal — a coordination role that operates
+        outside any single SubProject.
+
+        When ``as_draft=True`` (default), the ``actor`` is set to
+        ``"agent:planner"``, marking the version as ``draft``. This preserves
+        service-boundary autonomy: Planner can propose cross-boundary changes,
+        but the owning SubProject (or human reviewer) holds final publish
+        authority.
+
+        When ``as_draft=False``, the ``actor`` is set to ``SYSTEM_ACTOR``
+        (``"system"``), which results in a published version. Use with care.
+
         Requirements 1.3, 7.3
-
-        When ``as_draft=True`` (default), ``pushed_by`` is set to
-        ``"agent:planner"`` so that DocumentService._push_locked marks the
-        version as ``draft``.  This preserves service-boundary autonomy
-        (cross-boundary writes never auto-publish).
-
-        When ``as_draft=False``, ``pushed_by`` is set to ``SYSTEM_ACTOR``
-        (``"system"``), which results in a published version.  Use with care.
         """
-        pushed_by = _DRAFT_PUSHED_BY if as_draft else SYSTEM_ACTOR
+        actor = _DRAFT_ACTOR if as_draft else SYSTEM_ACTOR
         resolved = self._resolve_space_id(space_id)
         req = PushRequest(
             doc_id=doc_id,
             content=content,
-            pushed_by=pushed_by,
+            actor=actor,
             project_space_id=resolved,
         )
         result = self._c.document_service.push(req)

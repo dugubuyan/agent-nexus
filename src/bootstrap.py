@@ -178,7 +178,7 @@ def scan_and_import():
                 doc_service.push(PushRequest(
                     doc_id=doc_id,
                     content=content,
-                    pushed_by="bootstrap",
+                    actor="bootstrap",
                     project_space_id=space_id,
                 ))
                 session.commit()

@@ -48,7 +48,7 @@ def _make_version(doc_id: str, version: int = 1, space_id: str = "space-1"):
         project_space_id=space_id,
         version=version,
         content_hash="abc123",
-        pushed_by="proj-a",
+        actor="proj-a",
         status="published",
         is_milestone=False,
         milestone_stage=None,

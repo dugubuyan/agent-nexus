@@ -10,7 +10,7 @@ from pydantic import BaseModel
 class PushRequest(BaseModel):
     doc_id: str
     content: str
-    pushed_by: str          # project_id or "agent:*" (agent:planner for Planner drafts)
+    actor: str              # subproject_id for in-boundary writes, or "agent:<role>" for cross-boundary actors (Planner, etc). See v4-ideas §18.
     project_space_id: str
     metadata: dict = {}     # for config type, must contain "stage"
     base_version: int | None = None  # expected server version; None skips check
@@ -27,12 +27,12 @@ class DocumentResult(BaseModel):
     content: str
     version: int
     pushed_at: datetime
-    pushed_by: str
+    actor: str
     status: str
 
 
 class VersionMeta(BaseModel):
     version: int
     pushed_at: datetime
-    pushed_by: str
+    actor: str
     status: str

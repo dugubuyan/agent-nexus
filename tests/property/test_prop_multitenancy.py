@@ -170,7 +170,7 @@ def test_prop_space_data_isolation_documents(num_docs: int):
                     req = PushRequest(
                         doc_id=doc_id,
                         content=f"# Doc {i}\nContent {uuid.uuid4().hex}",
-                        pushed_by=sub_a_id,
+                        actor=sub_a_id,
                         project_space_id=space_a.id,
                     )
                     doc_svc.push(req)
@@ -352,7 +352,7 @@ def test_prop_archived_space_allows_read_get_document(dummy: int):
                 PushRequest(
                     doc_id=doc_id,
                     content="# Archived content",
-                    pushed_by=sub_id,
+                    actor=sub_id,
                     project_space_id=space.id,
                 )
             )

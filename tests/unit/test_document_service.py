@@ -43,11 +43,11 @@ def _sha256(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
-def _push(svc, doc_id, content, pushed_by="agent-1", project_space_id="space-1", metadata=None):
+def _push(svc, doc_id, content, actor="agent-1", project_space_id="space-1", metadata=None):
     req = PushRequest(
         doc_id=doc_id,
         content=content,
-        pushed_by=pushed_by,
+        actor=actor,
         project_space_id=project_space_id,
         metadata=metadata or {},
     )
@@ -159,13 +159,13 @@ def test_push_config_with_stage_in_doc_id_succeeds(db_session, default_space, tm
 
 def test_push_system_llm_sets_status_draft(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    result = _push(svc, "sub1/design", "# Draft", pushed_by="agent:planner", project_space_id=default_space.id)
+    result = _push(svc, "sub1/design", "# Draft", actor="agent:planner", project_space_id=default_space.id)
     assert result.status == "draft"
 
 
 def test_push_external_agent_sets_status_published(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    result = _push(svc, "sub1/design", "# Published", pushed_by="agent-42", project_space_id=default_space.id)
+    result = _push(svc, "sub1/design", "# Published", actor="agent-42", project_space_id=default_space.id)
     assert result.status == "published"
 
 
@@ -233,10 +233,10 @@ def test_get_with_specific_version_returns_that_version(db_session, default_spac
 
 def test_get_returns_correct_metadata(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    _push(svc, "sub1/task", "# Task", pushed_by="agent-99", project_space_id=default_space.id)
+    _push(svc, "sub1/task", "# Task", actor="agent-99", project_space_id=default_space.id)
 
     result = svc.get("sub1/task", default_space.id)
-    assert result.pushed_by == "agent-99"
+    assert result.actor == "agent-99"
     assert result.doc_id == "sub1/task"
     assert result.pushed_at is not None
 
@@ -285,15 +285,15 @@ def test_list_versions_nonexistent_doc_returns_doc_not_found(db_session, default
     assert exc_info.value.error_code == "DOC_NOT_FOUND"
 
 
-def test_list_versions_contains_pushed_by_and_status(db_session, default_space, tmp_docs_root):
+def test_list_versions_contains_actor_and_status(db_session, default_space, tmp_docs_root):
     svc = _make_service(db_session, tmp_docs_root)
-    _push(svc, "sub1/api", "# v1", pushed_by="agent:planner", project_space_id=default_space.id)
-    _push(svc, "sub1/api", "# v2", pushed_by="agent-1", project_space_id=default_space.id)
+    _push(svc, "sub1/api", "# v1", actor="agent:planner", project_space_id=default_space.id)
+    _push(svc, "sub1/api", "# v2", actor="agent-1", project_space_id=default_space.id)
 
     versions = svc.list_versions("sub1/api", default_space.id)
-    assert versions[0].pushed_by == "agent:planner"
+    assert versions[0].actor == "agent:planner"
     assert versions[0].status == "draft"
-    assert versions[1].pushed_by == "agent-1"
+    assert versions[1].actor == "agent-1"
     assert versions[1].status == "published"
 
 
@@ -403,7 +403,7 @@ def test_concurrent_pushes_produce_unique_monotonic_versions(engine, tmp_docs_ro
                 req = PushRequest(
                     doc_id=doc_id,
                     content=f"# Version from thread {i}\n\nUnique content {i}",
-                    pushed_by=f"agent-{i}",
+                    actor=f"agent-{i}",
                     project_space_id=space_id,
                     metadata={},
                 )
@@ -528,7 +528,7 @@ def test_concurrent_pushes_to_different_docs_do_not_interfere(tmp_docs_root):
                 req = PushRequest(
                     doc_id=doc_id,
                     content=f"# Doc {i}",
-                    pushed_by=f"agent-{i}",
+                    actor=f"agent-{i}",
                     project_space_id=space_id,
                     metadata={},
                 )

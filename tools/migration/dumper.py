@@ -247,7 +247,7 @@ def dump_space(
             doc_entry["versions"].append({
                 "version": ver.version,
                 "content_hash": ver.content_hash,
-                "pushed_by": ver.pushed_by,
+                "actor": ver.actor,
                 "status": ver.status,
                 "is_milestone": ver.is_milestone,
                 "milestone_stage": ver.milestone_stage,

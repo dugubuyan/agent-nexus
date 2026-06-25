@@ -339,7 +339,7 @@ def register_web_routes(mcp, get_handler) -> None:
             req = PushRequest(
                 doc_id=body["doc_id"],
                 content=body["content"],
-                pushed_by=project_id,
+                actor=project_id,
                 project_space_id=subproject.project_space_id,
                 metadata=body.get("metadata", {}),
                 base_version=body.get("base_version"),

@@ -131,7 +131,7 @@ def _make_subproject(session, space_id: str, name: str = "svc-a") -> SubProject:
     return sp
 
 
-def _push_doc(session, tmp_path, space_id: str, project_id: str, doc_id: str, content: str, pushed_by: str | None = None) -> int:
+def _push_doc(session, tmp_path, space_id: str, project_id: str, doc_id: str, content: str, actor: str | None = None) -> int:
     """Push a published document using DocumentService; returns version number."""
     from agent_nexus.services.audit_log_service import AuditLogService
     from agent_nexus.services.document_service import DocumentService
@@ -141,7 +141,7 @@ def _push_doc(session, tmp_path, space_id: str, project_id: str, doc_id: str, co
     req = PushRequest(
         doc_id=doc_id,
         content=content,
-        pushed_by=pushed_by or project_id,
+        actor=actor or project_id,
         project_space_id=space_id,
     )
     result = svc.push(req)

@@ -188,7 +188,7 @@ class DocumentService:
 
         # 5. Determine status
         now = datetime.now(timezone.utc)
-        if req.pushed_by.startswith("agent:"):
+        if req.actor.startswith("agent:"):
             status = "draft"
             published_at = None
         else:
@@ -264,7 +264,7 @@ class DocumentService:
                 project_space_id=req.project_space_id,
                 version=new_version_num,
                 content_hash=content_hash,
-                pushed_by=req.pushed_by,
+                actor=req.actor,
                 status=status,
                 is_milestone=False,
                 milestone_stage=None,
@@ -295,7 +295,7 @@ class DocumentService:
         # 9. Write audit log
         self._audit.log(
             operation_type="push_document",
-            operator_project_id=req.pushed_by,
+            operator_project_id=req.actor,
             target_id=req.doc_id,
             result="success",
             project_space_id=req.project_space_id,
@@ -389,7 +389,7 @@ class DocumentService:
             content=content,
             version=doc_version.version,
             pushed_at=doc_version.pushed_at,
-            pushed_by=doc_version.pushed_by,
+            actor=doc_version.actor,
             status=doc_version.status,
         )
 
@@ -429,7 +429,7 @@ class DocumentService:
             VersionMeta(
                 version=v.version,
                 pushed_at=v.pushed_at,
-                pushed_by=v.pushed_by,
+                actor=v.actor,
                 status=v.status,
             )
             for v in versions
@@ -711,7 +711,7 @@ class DocumentService:
                 project_space_id=project_space_id,
                 version=new_version_num,
                 content_hash=published_version.content_hash,
-                pushed_by=triggered_by,
+                actor=triggered_by,
                 status="published",
                 is_milestone=True,
                 milestone_stage=new_stage,

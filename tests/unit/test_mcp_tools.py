@@ -58,7 +58,7 @@ def push_doc(handler, project_id, doc_id, content, space_id=None):
     req = PushRequest(
         doc_id=doc_id,
         content=content,
-        pushed_by=project_id,
+        actor=project_id,
         project_space_id=sp.project_space_id,
     )
     return handler._c.document_service.push(req)

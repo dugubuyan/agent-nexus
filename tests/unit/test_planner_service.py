@@ -4,7 +4,7 @@ Unit tests for PlannerService.
 Covers:
   - 读能力：list_spaces / list_projects / read_document（无 project_id 限制）
   - search 复用 FTS 正常返回
-  - 写能力：push_document 的 pushed_by 标识正确、默认 as_draft 走 draft 状态
+  - 写能力：push_document 的 actor 标识正确、默认 as_draft 走 draft 状态
   - 跨边界写：写其他服务名下文档时为 draft，未自动 publish
   - AI 能力：mock LLMClient 验证 chat/plan 的 prompt 组装
   - llm_client=None 时返回 LLM_NOT_CONFIGURED
@@ -36,7 +36,7 @@ from agent_nexus.models.entities import (
     SubProject,
     ProjectSpace,
 )
-from agent_nexus.planner.planner_service import PlannerService, SYSTEM_ACTOR, _DRAFT_PUSHED_BY
+from agent_nexus.planner.planner_service import PlannerService, SYSTEM_ACTOR, _DRAFT_ACTOR
 from agent_nexus.search.fts import ensure_fts_table, upsert_doc
 
 
@@ -199,7 +199,7 @@ def test_read_document_returns_content(fts_session, tmp_path):
     req = PushRequest(
         doc_id=f"{sp.id}/design",
         content="# Design doc content",
-        pushed_by=sp.id,
+        actor=sp.id,
         project_space_id=space.id,
     )
     container.document_service.push(req)
@@ -250,13 +250,13 @@ def test_search_returns_empty_for_no_match(fts_session, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 写能力：push_document — pushed_by 标识与 draft 状态
+# 写能力：push_document — actor 标识与 draft 状态
 # Validates: Requirements 1.3, 7.3
 # ---------------------------------------------------------------------------
 
 
 def test_push_document_as_draft_sets_agent_planner(fts_session, tmp_path):
-    """as_draft=True 时 pushed_by 应为 'agent:planner'，status 应为 'draft'。"""
+    """as_draft=True 时 actor 应为 'agent:planner'，status 应为 'draft'。"""
     space = _make_space(fts_session)
     sp = _make_subproject(fts_session, space.id)
 
@@ -270,19 +270,19 @@ def test_push_document_as_draft_sets_agent_planner(fts_session, tmp_path):
 
     assert result["status"] == "draft"
 
-    # Verify pushed_by in DB
+    # Verify actor in DB
     ver = (
         fts_session.query(DocumentVersion)
         .filter(DocumentVersion.document_id == f"{sp.id}/design")
         .first()
     )
     assert ver is not None
-    assert ver.pushed_by == _DRAFT_PUSHED_BY  # "agent:planner"
+    assert ver.actor == _DRAFT_ACTOR  # "agent:planner"
     assert ver.status == "draft"
 
 
 def test_push_document_not_draft_sets_system_published(fts_session, tmp_path):
-    """as_draft=False 时 pushed_by 应为 'system'，status 应为 'published'。"""
+    """as_draft=False 时 actor 应为 'system'，status 应为 'published'。"""
     space = _make_space(fts_session)
     sp = _make_subproject(fts_session, space.id)
 
@@ -302,7 +302,7 @@ def test_push_document_not_draft_sets_system_published(fts_session, tmp_path):
         .first()
     )
     assert ver is not None
-    assert ver.pushed_by == SYSTEM_ACTOR  # "system"
+    assert ver.actor == SYSTEM_ACTOR  # "system"
     assert ver.status == "published"
 
 
@@ -438,7 +438,7 @@ async def test_chat_with_specific_doc_ids(fts_session, tmp_path):
     req = PushRequest(
         doc_id=f"{sp.id}/design",
         content="# Design content for caching",
-        pushed_by=sp.id,
+        actor=sp.id,
         project_space_id=space.id,
     )
     container.document_service.push(req)
@@ -765,7 +765,7 @@ async def test_mcp_planner_overview_returns_cross_project_view(fts_session, tmp_
     container.document_service.push(PushRequest(
         doc_id=f"{sp1.id}/requirement",
         content="Requirements",
-        pushed_by=sp1.id,
+        actor=sp1.id,
         project_space_id=space.id,
     ))
 
@@ -820,7 +820,7 @@ def test_document_service_push_still_works_without_planner(fts_session, tmp_path
     req = PushRequest(
         doc_id=f"{sp.id}/requirement",
         content="# Requirement content",
-        pushed_by=sp.id,
+        actor=sp.id,
         project_space_id=space.id,
     )
     result = container.document_service.push(req)
@@ -860,7 +860,7 @@ def test_planner_not_registered_as_subproject(fts_session, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_system_actor_and_draft_pushed_by_constants():
-    """SYSTEM_ACTOR == 'system', _DRAFT_PUSHED_BY == 'agent:planner'。"""
+def test_system_actor_and_draft_actor_constants():
+    """SYSTEM_ACTOR == 'system', _DRAFT_ACTOR == 'agent:planner'。"""
     assert SYSTEM_ACTOR == "system"
-    assert _DRAFT_PUSHED_BY == "agent:planner"
+    assert _DRAFT_ACTOR == "agent:planner"

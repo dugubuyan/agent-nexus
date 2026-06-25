@@ -62,11 +62,11 @@ def _make_service(session, docs_root):
     return DocumentService(db=session, docs_root=docs_root, audit_log_service=audit)
 
 
-def _push(svc, doc_id, content, pushed_by="agent-1", project_space_id=None, metadata=None):
+def _push(svc, doc_id, content, actor="agent-1", project_space_id=None, metadata=None):
     req = PushRequest(
         doc_id=doc_id,
         content=content,
-        pushed_by=pushed_by,
+        actor=actor,
         project_space_id=project_space_id,
         metadata=metadata or {},
     )
@@ -425,18 +425,18 @@ def test_prop_config_valid_stage_succeeds(subproject_id, content, stage):
     subproject_id=valid_subproject_id,
     doc_type=non_config_doc_types,
     content=non_empty_content,
-    pushed_by=st.one_of(
+    actor=st.one_of(
         st.just("system_llm"),
         valid_subproject_id,  # reuse as project_id
     ),
 )
-def test_prop_version_metadata_complete(subproject_id, doc_type, content, pushed_by):
+def test_prop_version_metadata_complete(subproject_id, doc_type, content, actor):
     """
     Property 9: 版本元数据完整性
 
     For any successfully pushed document version, both get() and list_versions()
     must return records containing: version number, pushed_at timestamp, and
-    pushed_by equal to the pusher's project_id or "system_llm".
+    actor equal to the pusher's project_id or "system_llm".
 
     **Validates: Requirements 3.4, 6.5**
     """
@@ -447,14 +447,14 @@ def test_prop_version_metadata_complete(subproject_id, doc_type, content, pushed
             svc = _make_service(session, docs_root)
             doc_id = f"{subproject_id}/{doc_type}"
 
-            result = _push(svc, doc_id, content, pushed_by=pushed_by, project_space_id=space_id)
+            result = _push(svc, doc_id, content, actor=actor, project_space_id=space_id)
 
             # get() must return complete metadata
             fetched = svc.get(doc_id, space_id)
             assert fetched.version is not None, "version must be present"
             assert fetched.pushed_at is not None, "pushed_at must be present"
-            assert fetched.pushed_by == pushed_by, (
-                f"pushed_by mismatch: expected {pushed_by!r}, got {fetched.pushed_by!r}"
+            assert fetched.actor == actor, (
+                f"actor mismatch: expected {actor!r}, got {fetched.actor!r}"
             )
 
             # list_versions() must also return complete metadata
@@ -463,8 +463,8 @@ def test_prop_version_metadata_complete(subproject_id, doc_type, content, pushed
             v = versions[0]
             assert v.version == result.version, "version in list_versions must match push result"
             assert v.pushed_at is not None, "pushed_at must be present in list_versions"
-            assert v.pushed_by == pushed_by, (
-                f"pushed_by in list_versions mismatch: expected {pushed_by!r}, got {v.pushed_by!r}"
+            assert v.actor == actor, (
+                f"actor in list_versions mismatch: expected {actor!r}, got {v.actor!r}"
             )
         finally:
             session.close()
@@ -606,7 +606,7 @@ def test_prop_version_retention_invariants(
                     project_space_id=space_id,
                     version=ver_num,
                     content_hash=str(uuid.uuid4()),
-                    pushed_by="test-agent",
+                    actor="test-agent",
                     status="published",
                     is_milestone=is_milestone,
                     milestone_stage="v1.0" if is_milestone else None,
@@ -634,7 +634,7 @@ def test_prop_version_retention_invariants(
                     project_space_id=space_id,
                     version=ver_num,
                     content_hash=str(uuid.uuid4()),
-                    pushed_by="test-agent",
+                    actor="test-agent",
                     status="published",
                     is_milestone=False,
                     milestone_stage=None,

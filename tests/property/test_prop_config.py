@@ -131,7 +131,7 @@ def test_prop_get_config_stage_isolation(contents):
                 req = PushRequest(
                     doc_id=f"{project_id}/config/{stage}",
                     content=stage_contents[stage],
-                    pushed_by=project_id,
+                    actor=project_id,
                     project_space_id=space_id,
                 )
                 handler._c.document_service.push(req)
@@ -195,7 +195,7 @@ def test_prop_get_config_missing_stage_returns_doc_not_found(content, queried_st
             req = PushRequest(
                 doc_id=f"{project_id}/config/{push_stage}",
                 content=content,
-                pushed_by=project_id,
+                actor=project_id,
                 project_space_id=space_id,
             )
             handler._c.document_service.push(req)
