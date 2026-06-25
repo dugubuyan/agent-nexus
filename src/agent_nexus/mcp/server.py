@@ -265,6 +265,32 @@ async def generate_instruction_file(
 
 
 @mcp.tool()
+async def get_sdaop_version(client_type: str = "kiro") -> dict:
+    """
+    Return the current SDAOP protocol version for the given client_type.
+
+    The version is a short hash of the service-side templates that produce
+    the steering file and push-tool script. Call this at the start of every
+    session and compare against the `_sdaop_version` field in your local
+    `.kiro/nexus-state.json`:
+
+    - Versions match → your local steering + nexus_push.py are current.
+    - Versions differ → service-side templates have changed; call
+      `generate_instruction_file` again to regenerate your steering file
+      (the response also tells you to refresh nexus_push.py).
+
+    Returns:
+      - sdaop_version: current version string (hex digest prefix)
+      - client_type: echoed back for clarity
+    """
+    from agent_nexus.mcp.sdaop import compute_sdaop_version
+    return {
+        "sdaop_version": compute_sdaop_version(client_type),
+        "client_type": client_type,
+    }
+
+
+@mcp.tool()
 async def generate_steering_file(project_name: str, project_space_id: str) -> dict:
     """
     [DEPRECATED] Use generate_instruction_file instead, which supports multiple client types.

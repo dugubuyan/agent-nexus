@@ -8,6 +8,11 @@
 
 At the start of every session:
 
+0. Call `get_sdaop_version(client_type="<your client>")` and compare against
+   the `_sdaop_version` field in your local `.kiro/nexus-state.json`. If they
+   differ, the service-side onboarding protocol has been updated — call
+   `generate_instruction_file` again to regenerate your steering file (and
+   refresh `nexus_push.py` per the response). Then continue with the steps below.
 1. Call `get_project_id_by_name(name="{{PROJECT_NAME}}", project_space_id="{{PROJECT_SPACE_ID}}")` to resolve your project_id.
 2. Call `get_my_updates_with_context(project_id=<project_id>)` to check for pending document changes.
 3. Call `get_document_checklist(project_id=<project_id>)` to see which documents are missing for your project.
@@ -56,6 +61,11 @@ At session start, read this file alongside `get_my_updates_with_context`:
 - Server version higher than your `local_version` → apply the diff, update local file and `local_version`
 - Versions match → local file is in sync
 - File doesn't exist yet → treat all docs as new after first push
+
+The file also stores a reserved key `_sdaop_version` (string) that records
+the SDAOP protocol version your steering file and `nexus_push.py` were
+generated from. Compare it against `get_sdaop_version()` at session start
+(step 0 above) to detect when the service-side protocol has changed.
 
 ## Setup: Download the Push Script
 

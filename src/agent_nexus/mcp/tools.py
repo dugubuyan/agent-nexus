@@ -432,6 +432,9 @@ class ToolHandler:
         """
         import json
         import os
+        from datetime import datetime, timezone
+
+        from agent_nexus.mcp.sdaop import compute_sdaop_version
 
         spec_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
@@ -472,9 +475,54 @@ class ToolHandler:
         # Render client template, injecting common content
         content = template_content.replace("{{COMMON}}", common_rendered)
 
+        # Inject SDAOP version metadata as YAML frontmatter so agents and
+        # the version-check step at session start can read it. If the client
+        # template already opens with a YAML frontmatter block (e.g. cursor's
+        # `alwaysApply: true`), merge our fields into it; otherwise prepend
+        # a new frontmatter block.
+        sdaop_version = compute_sdaop_version(client_type)
+        generated_at = datetime.now(timezone.utc).isoformat()
+        sdaop_fields = (
+            f"sdaop_version: {sdaop_version}\n"
+            f"generated_at: {generated_at}\n"
+            f"client_type: {client_type}\n"
+        )
+        if content.startswith("---\n"):
+            # Find the closing `---` of the existing frontmatter
+            end = content.find("\n---\n", 4)
+            if end == -1:
+                # Malformed; fall back to prepend
+                content = f"---\n{sdaop_fields}---\n\n{content}"
+            else:
+                existing = content[4:end + 1]  # contents between the two --- lines
+                rest = content[end + 5:]       # everything after the closing ---\n
+                content = f"---\n{existing}{sdaop_fields}---\n{rest}"
+        else:
+            content = f"---\n{sdaop_fields}---\n\n{content}"
+
         return {
             "file_path": file_path,
             "file_content": content,
+            "sdaop_version": sdaop_version,
+            "push_tool_refresh": {
+                "instruction": (
+                    "Also refresh the push-tool script — its content is part of the "
+                    "SDAOP protocol and may have changed too. Download it and "
+                    "preserve your PROJECT_ID substitution."
+                ),
+                "url": "http://localhost:10086/api/templates/push-tool.py",
+                "target_file": push_script_path,
+            },
+            "nexus_state_update": {
+                "instruction": (
+                    "Persist the new sdaop_version in .kiro/nexus-state.json under "
+                    "the special key `_sdaop_version`. Future sessions will use this "
+                    "to detect when the service-side protocol has changed."
+                ),
+                "file": ".kiro/nexus-state.json",
+                "operation": "merge",
+                "entry": {"_sdaop_version": sdaop_version},
+            },
             "instruction": f"Write file_content to {file_path}.",
         }
 

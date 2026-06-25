@@ -31,7 +31,10 @@ def read_base_version(doc_id: str) -> int | None:
     with open(STATE_FILE) as f:
         state = json.load(f)
     entry = state.get(doc_id)
-    return entry.get("local_version") if entry else None
+    # Skip non-dict entries (e.g. the reserved `_sdaop_version` string key).
+    if not isinstance(entry, dict):
+        return None
+    return entry.get("local_version")
 
 
 def push_document(doc_id: str, content: str, base_version: int | None = None, metadata: dict | None = None) -> dict:
