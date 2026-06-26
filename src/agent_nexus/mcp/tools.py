@@ -103,35 +103,6 @@ class ToolHandler:
             return self._error_dict(exc)
 
     # ------------------------------------------------------------------
-    # Tool: get_my_updates  (read)
-    # ------------------------------------------------------------------
-
-    async def get_my_updates(self, project_id: str) -> list[dict]:
-        """
-        Return all unread notifications for the given project_id.
-
-        Requirements 8.1, 8.4
-        """
-        try:
-            subproject = self._validate_project(project_id)
-            notifications = self._c.notification_service.get_unread(
-                project_id=project_id,
-                project_space_id=subproject.project_space_id,
-            )
-            return [
-                {
-                    "id": n.id,
-                    "doc_id": n.document_id,
-                    "version": n.version,
-                    "created_at": n.created_at.isoformat(),
-                    "status": n.status,
-                }
-                for n in notifications
-            ]
-        except AgentNexusError as exc:
-            return [self._error_dict(exc)]
-
-    # ------------------------------------------------------------------
     # Tool: ack_update  (write — checks archive)
     # ------------------------------------------------------------------
 

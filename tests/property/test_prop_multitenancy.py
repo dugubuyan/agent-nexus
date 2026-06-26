@@ -382,11 +382,11 @@ def test_prop_archived_space_allows_read_get_document(dummy: int):
 
 @settings(max_examples=100)
 @given(dummy=st.integers(min_value=0, max_value=99))
-def test_prop_archived_space_allows_read_get_my_updates(dummy: int):
+def test_prop_archived_space_allows_read_get_my_updates_with_context(dummy: int):
     """
-    Property 26: 归档状态允许读操作 — get_my_updates
+    Property 26: 归档状态允许读操作 — get_my_updates_with_context
 
-    For an archived Project_Space, get_my_updates must return a list
+    For an archived Project_Space, get_my_updates_with_context must return a list
     (possibly empty) without SPACE_ARCHIVED error.
 
     **Validates: Requirements 10.6, 10.7**
@@ -403,13 +403,13 @@ def test_prop_archived_space_allows_read_get_my_updates(dummy: int):
             handler = ToolHandler(container)
 
             result = asyncio.get_event_loop().run_until_complete(
-                handler.get_my_updates(project_id=sub_id)
+                handler.get_my_updates_with_context(project_id=sub_id)
             )
-            assert isinstance(result, list), "get_my_updates must return a list"
+            assert isinstance(result, list), "get_my_updates_with_context must return a list"
             # Must not contain SPACE_ARCHIVED error
             for item in result:
                 assert item.get("error") != "SPACE_ARCHIVED", (
-                    f"get_my_updates should not return SPACE_ARCHIVED on archived space, got {item}"
+                    f"get_my_updates_with_context should not return SPACE_ARCHIVED on archived space, got {item}"
                 )
     finally:
         session.close()

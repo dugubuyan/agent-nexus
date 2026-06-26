@@ -106,7 +106,7 @@ def test_prop_notification_generation_and_query(
     and be in unread status.
 
     # Feature: agent-nexus, Property 14: 对于任意文档推送，所有订阅了该文档（按 doc_id 或 doc_type）
-    # 的子项目，在推送成功后调用 get_my_updates 应能看到对应的未读通知，通知中包含正确的 doc_id、版本号。
+    # 的子项目，在推送成功后调用 get_my_updates_with_context 应能看到对应的未读通知，通知中包含正确的 doc_id、版本号。
 
     **Validates: Requirements 5.1, 5.2**
     """
@@ -197,7 +197,7 @@ def test_prop_ack_removes_notification_from_unread(doc_type: str, version: int):
     calling ack on an already-read notification must not raise an error.
 
     # Feature: agent-nexus, Property 15: 对于任意未读通知，调用 ack_update 后，
-    # 再次调用 get_my_updates 应不再返回该通知；ack 操作是幂等的（对已读通知再次 ack 不报错）。
+    # 再次调用 get_my_updates_with_context 应不再返回该通知；ack 操作是幂等的（对已读通知再次 ack 不报错）。
 
     **Validates: Requirements 5.3**
     """
@@ -274,7 +274,7 @@ def test_prop_notification_idempotency(doc_type: str, version: int, repeat_count
     generate() is called internally.
 
     # Feature: agent-nexus, Property 16: 对于任意文档的单次版本变更，同一订阅方在
-    # get_my_updates 中最多只能看到一条对应的通知记录，无论触发了多少次内部处理。
+    # get_my_updates_with_context 中最多只能看到一条对应的通知记录，无论触发了多少次内部处理。
 
     **Validates: Requirements 5.5**
     """

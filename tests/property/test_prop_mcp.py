@@ -81,10 +81,10 @@ nonexistent_project_id = st.uuids().map(str)
 
 @settings(max_examples=100)
 @given(project_id=nonexistent_project_id)
-def test_prop_mcp_nonexistent_project_id_get_my_updates(project_id: str):
+def test_prop_mcp_nonexistent_project_id_get_my_updates_with_context(project_id: str):
     """
-    Property 22 (get_my_updates): For any non-existent project_id,
-    get_my_updates must return a list containing an UNAUTHORIZED error.
+    Property 22 (get_my_updates_with_context): For any non-existent project_id,
+    get_my_updates_with_context must return a list containing an UNAUTHORIZED error.
 
     **Validates: Requirements 8.4**
     """
@@ -92,8 +92,8 @@ def test_prop_mcp_nonexistent_project_id_get_my_updates(project_id: str):
     try:
         with tempfile.TemporaryDirectory() as docs_root:
             handler = _make_handler(session, docs_root)
-            result = _run(handler.get_my_updates(project_id=project_id))
-            assert isinstance(result, list), "get_my_updates must return a list"
+            result = _run(handler.get_my_updates_with_context(project_id=project_id))
+            assert isinstance(result, list), "get_my_updates_with_context must return a list"
             assert len(result) == 1, f"Expected 1 error entry, got {len(result)}"
             assert result[0].get("error") == "UNAUTHORIZED", (
                 f"Expected UNAUTHORIZED, got {result[0]}"

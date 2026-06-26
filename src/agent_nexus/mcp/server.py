@@ -149,19 +149,6 @@ async def get_my_updates_with_context(project_id: str) -> list[dict]:
 
 
 @mcp.tool()
-async def get_my_updates(project_id: str) -> list[dict]:
-    """
-    [DEPRECATED] Return unread notification IDs only — use get_my_updates_with_context instead.
-    get_my_updates_with_context returns diff + full content in one call, making this redundant.
-    """
-    handler, session = _get_handler()
-    try:
-        return await handler.get_my_updates(project_id)
-    finally:
-        session.close()
-
-
-@mcp.tool()
 async def ack_update(project_id: str, update_id: str) -> dict:
     """Acknowledge (mark as read) a notification."""
     handler, session = _get_handler()
@@ -288,19 +275,6 @@ async def get_sdaop_version(client_type: str = "kiro") -> dict:
         "sdaop_version": compute_sdaop_version(client_type),
         "client_type": client_type,
     }
-
-
-@mcp.tool()
-async def generate_steering_file(project_name: str, project_space_id: str) -> dict:
-    """
-    [DEPRECATED] Use generate_instruction_file instead, which supports multiple client types.
-    Generates a Kiro steering file — equivalent to generate_instruction_file with client_type="kiro".
-    """
-    handler, session = _get_handler()
-    try:
-        return await handler.generate_steering_file(project_name, project_space_id, "kiro")
-    finally:
-        session.close()
 
 
 @mcp.tool()

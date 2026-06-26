@@ -96,49 +96,6 @@ async def test_get_document_invalid_project_returns_unauthorized(db_session, tmp
 
 
 # ---------------------------------------------------------------------------
-# get_my_updates
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_get_my_updates_returns_unread_notifications(db_session, tmp_docs_root):
-    space = make_space(db_session)
-    sp = make_subproject(db_session, space.id)
-    handler = make_handler(db_session, tmp_docs_root)
-
-    # Manually insert an unread notification
-    notif = Notification(
-        id=str(uuid.uuid4()),
-        project_space_id=space.id,
-        recipient_project_id=sp.id,
-        document_id=f"{sp.id}/design",
-        version=1,
-        status="unread",
-        created_at=datetime.now(timezone.utc),
-    )
-    db_session.add(notif)
-    db_session.flush()
-
-    result = await handler.get_my_updates(sp.id)
-
-    assert isinstance(result, list)
-    assert len(result) == 1
-    assert result[0]["doc_id"] == f"{sp.id}/design"
-    assert result[0]["version"] == 1
-
-
-@pytest.mark.asyncio
-async def test_get_my_updates_invalid_project_returns_unauthorized(db_session, tmp_docs_root):
-    handler = make_handler(db_session, tmp_docs_root)
-
-    result = await handler.get_my_updates("nonexistent-id")
-
-    assert isinstance(result, list)
-    assert len(result) == 1
-    assert result[0]["error"] == "UNAUTHORIZED"
-
-
-# ---------------------------------------------------------------------------
 # ack_update
 # ---------------------------------------------------------------------------
 
@@ -166,8 +123,8 @@ async def test_ack_update_marks_notification_as_read(db_session, tmp_docs_root):
     assert result["status"] == "ok"
     assert result["update_id"] == notif.id
 
-    # Verify it no longer appears in get_my_updates
-    updates = await handler.get_my_updates(sp.id)
+    # Verify it no longer appears in get_my_updates_with_context
+    updates = await handler.get_my_updates_with_context(sp.id)
     assert len(updates) == 0
 
 
