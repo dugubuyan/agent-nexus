@@ -136,11 +136,7 @@ async def get_document(
 
 @mcp.tool()
 async def get_my_updates_with_context(project_id: str) -> list[dict]:
-    """
-    Return all unread notifications with diff and full latest document content.
-    One call gives everything needed to understand what changed and act on it.
-    After processing, call ack_update for each update_id to mark as read.
-    """
+    """Return unread notifications with diff and full document content; call ack_update after processing each."""
     handler, session = _get_handler()
     try:
         return await handler.get_my_updates_with_context(project_id)
@@ -175,10 +171,7 @@ async def get_my_tasks(project_id: str) -> list[dict]:
 
 @mcp.tool()
 async def get_config(project_id: str, stage: str) -> dict:
-    """
-    [DEPRECATED] Return the config document for the given project and stage.
-    Use get_document(project_id, f"{project_id}/config/{stage}") directly instead — it is equivalent and more flexible.
-    """
+    """[DEPRECATED] Use get_document(project_id, f"{project_id}/config/{stage}") instead."""
     handler, session = _get_handler()
     try:
         return await handler.get_config(project_id, stage)
@@ -188,24 +181,7 @@ async def get_config(project_id: str, stage: str) -> dict:
 
 @mcp.tool()
 async def get_document_checklist(project_id: str) -> dict:
-    """
-    Return the document completeness checklist for the given project.
-
-    Uses the project's custom task/checklist document if present
-    (doc_id = "{project_id}/task/checklist"), otherwise falls back to a
-    minimal universal rule. Stage does not affect the checklist
-    (see v4-ideas §14).
-
-    Call this at session start alongside get_my_updates_with_context to know
-    what documents need to be created before proceeding with work.
-
-    Returns:
-      - required_docs: documents that must exist
-      - recommended_docs: documents that are helpful but not mandatory
-      - completeness: summary string (e.g. "1/3 required docs present")
-      - all_required_present: boolean — false means action is needed
-      - suggested_doc_id: the doc_id to use when pushing via HTTP POST to create a missing doc
-    """
+    """Return which documents the project still needs to create; call at session start to check completeness."""
     handler, session = _get_handler()
     try:
         return await handler.get_document_checklist(project_id)
@@ -224,26 +200,7 @@ async def generate_instruction_file(
     project_space_id: str,
     client_type: str = "kiro",
 ) -> dict:
-    """
-    ** Call this first if you have no instruction file for this server. **
-
-    If no AgentNexus instruction file exists in your workspace yet
-    (.kiro/steering/agent-nexus.md, CLAUDE.md, AGENTS.md, or
-    .cursor/rules/agent-nexus.mdc depending on your client), call this tool
-    immediately. Write the returned file_content to the returned file_path,
-    then reload it. Subsequent sessions will auto-load the file and you will
-    know how to interact with this service without calling this again.
-
-    This implements the Service-Driven Agent Onboarding Protocol (SDAOP): the
-    service generates its own onboarding document so agents require zero manual
-    configuration.
-
-    client_type values and their target files:
-      - "kiro"   → .kiro/steering/agent-nexus.md  (inclusion: auto frontmatter)
-      - "claude" → CLAUDE.md                        (plain markdown)
-      - "codex"  → AGENTS.md                        (plain markdown)
-      - "cursor" → .cursor/rules/agent-nexus.mdc   (alwaysApply frontmatter)
-    """
+    """Generate the AgentNexus instruction/steering file for your workspace. Call this first if no instruction file exists."""
     handler, session = _get_handler()
     try:
         return await handler.generate_steering_file(project_name, project_space_id, client_type)
@@ -253,23 +210,7 @@ async def generate_instruction_file(
 
 @mcp.tool()
 async def get_sdaop_version(client_type: str = "kiro") -> dict:
-    """
-    Return the current SDAOP protocol version for the given client_type.
-
-    The version is a short hash of the service-side templates that produce
-    the steering file and push-tool script. Call this at the start of every
-    session and compare against the `_sdaop_version` field in your local
-    `.kiro/nexus-state.json`:
-
-    - Versions match → your local steering + nexus_push.py are current.
-    - Versions differ → service-side templates have changed; call
-      `generate_instruction_file` again to regenerate your steering file
-      (the response also tells you to refresh nexus_push.py).
-
-    Returns:
-      - sdaop_version: current version string (hex digest prefix)
-      - client_type: echoed back for clarity
-    """
+    """Return the current SDAOP protocol version; compare with local nexus-state.json to detect if regeneration is needed."""
     from agent_nexus.mcp.sdaop import compute_sdaop_version
     return {
         "sdaop_version": compute_sdaop_version(client_type),
@@ -333,16 +274,7 @@ async def register_project(
     project_space_id: str,
     stage: str = "design",
 ) -> dict:
-    """
-    Register a new sub-project in the given project space.
-
-    type: development | testing | ops | infra | shared | ...
-    stage: lifecycle marker — design | development | testing | deployment | upgrade.
-           Informational only; does NOT determine which documents the project
-           needs (use a task/checklist document for that). Default "design"
-           is fine for most new projects; transitioning stages later only
-           triggers milestone snapshots, not document classification.
-    """
+    """Register a new sub-project in the given project space. Stage is informational only (default "design")."""
     handler, session = _get_handler()
     try:
         result = await handler.register_project(name, type, project_space_id, stage)
@@ -371,19 +303,7 @@ async def publish_draft(
     doc_id: str,
     version: int,
 ) -> dict:
-    """
-    Confirm a draft document version, publishing it and triggering notifications.
-
-    Only applicable when a document was pushed with actor="system_llm", which
-    creates a draft instead of publishing immediately. In normal agent workflows
-    (where the agent pushes documents via HTTP POST with its own project_id), documents are
-    published automatically and this tool is not needed.
-
-    Use this tool when a human or orchestration system wants to review and approve
-    an LLM-generated document before it propagates to subscribers.
-
-    Raises INVALID_STATUS_TRANSITION if the version does not exist or is already published.
-    """
+    """Publish a draft document version (created by actor="system_llm"), triggering subscriber notifications."""
     handler, session = _get_handler()
     try:
         result = await handler.publish_draft(project_id, doc_id, version)
@@ -408,18 +328,7 @@ async def list_documents(project_id: str) -> list[dict]:
 
 @mcp.tool()
 async def delete_document(project_id: str, doc_id: str) -> dict:
-    """
-    Soft-delete a document owned by project_id.
-
-    The document is marked as deleted and disappears from list_documents,
-    get_document, and search_documents. Version history is fully preserved
-    (git-style: deletion is a record, not an erasure). Subscribers receive
-    a notification with version=0 signalling that the document was removed.
-
-    Only the owning project (the one whose project_id is the prefix of doc_id)
-    may delete the document. Returns {"doc_id": ..., "status": "deleted"} on
-    success, or an error dict with UNAUTHORIZED / DOC_NOT_FOUND.
-    """
+    """Soft-delete a document owned by project_id. Only the owning project may delete; version history is preserved."""
     handler, session = _get_handler()
     try:
         result = await handler.delete_document(project_id, doc_id)
@@ -440,25 +349,7 @@ async def search_documents(
     subproject_id: str | None = None,
     limit: int = 10,
 ) -> list[dict]:
-    """
-    Full-text search across all published documents in a project space.
-
-    Supports FTS5 query syntax:
-    - Keywords:  authentication
-    - Phrases:   "user authentication"
-    - Prefix:    auth*
-    - Boolean:   authentication NOT oauth
-
-    Results are ranked by BM25 relevance (most relevant first).
-    Each result includes a snippet with matched terms highlighted using >>> / <<<.
-
-    Optional filters:
-    - doc_type: limit to a specific document type (requirement, design, api, etc.)
-    - subproject_id: limit to a specific sub-project
-
-    Returns [] when no matches are found.
-    Returns {"error": "INVALID_QUERY", ...} on FTS5 syntax errors.
-    """
+    """Full-text search (FTS5 syntax) across all published documents in a space, ranked by relevance."""
     handler, session = _get_handler()
     try:
         return await handler.search_documents(
@@ -479,18 +370,7 @@ async def planner_chat(
     question: str,
     doc_ids: list[str] | None = None,
 ) -> dict:
-    """
-    Ask the Planner a question with cross-service document context. Read-only.
-
-    Returns {answer: str} on success, or {error: ...} when the LLM is not
-    configured or a document/space error occurs.
-
-    If doc_ids is specified, only those documents are loaded as context.
-    Otherwise the Planner retrieves relevant documents via full-text search
-    (supports FTS5 query syntax) across the entire space.
-
-    Requirements 2.1, 4.1
-    """
+    """Ask the Planner a question with cross-service document context. Read-only; optionally scope to specific doc_ids."""
     handler, session = _get_handler()
     try:
         return await handler.planner_chat(space_id, question, doc_ids)
@@ -500,18 +380,7 @@ async def planner_chat(
 
 @mcp.tool()
 async def planner_plan(space_id: str, description: str) -> dict:
-    """
-    Propose a service decomposition (SubProjects + dependencies + initial document recommendations).
-
-    Returns proposal only, does NOT persist to database.
-    Human confirmation required before creating any SubProjects.
-
-    The returned dict contains a list of suggested SubProjects with their
-    types, dependencies, and recommended initial documents. Use register_project
-    to create sub-projects, then push documents via HTTP POST to act on the proposal.
-
-    Requirements 2.2, 4.1
-    """
+    """Propose a service decomposition (sub-projects + dependencies + docs). Read-only; does NOT persist anything."""
     handler, session = _get_handler()
     try:
         return await handler.planner_plan(space_id, description)
@@ -521,14 +390,7 @@ async def planner_plan(space_id: str, description: str) -> dict:
 
 @mcp.tool()
 async def planner_overview(space_id: str | None = None) -> dict:
-    """
-    Cross-subproject overview. Read-only global view.
-
-    space_id is OPTIONAL. If omitted, returns all spaces and their projects —
-    no prior knowledge of space IDs needed. space_id may also be a space name.
-
-    To get started with no context: call planner_overview() with no arguments.
-    """
+    """Read-only cross-subproject overview. If space_id is omitted, returns all spaces and their projects."""
     handler, session = _get_handler()
     try:
         return await handler.planner_overview(space_id)
@@ -538,12 +400,7 @@ async def planner_overview(space_id: str | None = None) -> dict:
 
 @mcp.tool()
 async def planner_delete_project(project_id: str, space_id: str) -> dict:
-    """
-    Delete a sub-project by project_id. space_id may be a UUID or space name.
-
-    Documents owned by the project are NOT deleted — they are retained for
-    audit purposes. Returns {"deleted": True} on success.
-    """
+    """Delete a sub-project by project_id; owned documents are retained for audit."""
     handler, session = _get_handler()
     try:
         result = await handler.planner_delete_project(project_id, space_id)
