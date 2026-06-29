@@ -10,6 +10,8 @@ Configure via env vars:
   AGENT_NEXUS_DOCS_ROOT        (default: ./workspace)
   AGENT_NEXUS_HOST             (default: 0.0.0.0)
   AGENT_NEXUS_PORT             (default: 10086)
+  AGENT_NEXUS_SSL_CERTFILE     (optional: path to SSL certificate, e.g. /etc/letsencrypt/live/domain/fullchain.pem)
+  AGENT_NEXUS_SSL_KEYFILE      (optional: path to SSL private key, e.g. /etc/letsencrypt/live/domain/privkey.pem)
 """
 
 import os
@@ -53,9 +55,19 @@ def main() -> None:
     if transport == "stdio":
         mcp.run(transport="stdio")
     else:
-        print(f"AgentNexus running at http://{HOST}:{PORT}/mcp")
-        print(f"Web Dashboard at http://{HOST}:{PORT}/")
-        mcp.run(transport="streamable-http")
+        ssl_certfile = os.environ.get("AGENT_NEXUS_SSL_CERTFILE")
+        ssl_keyfile = os.environ.get("AGENT_NEXUS_SSL_KEYFILE")
+
+        if ssl_certfile and ssl_keyfile:
+            protocol = "https"
+            ssl_kwargs = {"ssl_certfile": ssl_certfile, "ssl_keyfile": ssl_keyfile}
+        else:
+            protocol = "http"
+            ssl_kwargs = {}
+
+        print(f"AgentNexus running at {protocol}://{HOST}:{PORT}/mcp")
+        print(f"Web Dashboard at {protocol}://{HOST}:{PORT}/")
+        mcp.run(transport="streamable-http", **ssl_kwargs)
 
 
 if __name__ == "__main__":
