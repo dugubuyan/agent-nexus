@@ -60,14 +60,30 @@ def main() -> None:
 
         if ssl_certfile and ssl_keyfile:
             protocol = "https"
-            ssl_kwargs = {"ssl_certfile": ssl_certfile, "ssl_keyfile": ssl_keyfile}
         else:
             protocol = "http"
-            ssl_kwargs = {}
+            ssl_certfile = None
+            ssl_keyfile = None
 
         print(f"AgentNexus running at {protocol}://{HOST}:{PORT}/mcp")
         print(f"Web Dashboard at {protocol}://{HOST}:{PORT}/")
-        mcp.run(transport="streamable-http", **ssl_kwargs)
+
+        # FastMCP.run() does not expose SSL params, so we drive uvicorn directly.
+        import anyio
+        import uvicorn
+
+        async def _serve() -> None:
+            config = uvicorn.Config(
+                mcp.streamable_http_app(),
+                host=HOST,
+                port=PORT,
+                log_level=mcp.settings.log_level.lower(),
+                ssl_certfile=ssl_certfile,
+                ssl_keyfile=ssl_keyfile,
+            )
+            await uvicorn.Server(config).serve()
+
+        anyio.run(_serve)
 
 
 if __name__ == "__main__":
