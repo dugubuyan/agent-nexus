@@ -11,8 +11,9 @@ At the start of every session:
 0. Call `get_sdaop_version(client_type="<your client>")` and compare against
    the `_sdaop_version` field in your local `.kiro/nexus-state.json`. If they
    differ, the service-side onboarding protocol has been updated — call
-   `generate_instruction_file` again to regenerate your steering file (and
-   refresh `nexus_push.py` per the response). Then continue with the steps below.
+   `generate_instruction_file` again to regenerate your steering file and
+   refresh `nexus_push.py` (write `push_script.content` to the target file).
+   Then continue with the steps below.
 1. Call `get_project_id_by_name(name="{{PROJECT_NAME}}", project_space_id="{{PROJECT_SPACE_ID}}")` to resolve your project_id.
 2. Call `get_my_updates_with_context(project_id=<project_id>)` to check for pending document changes.
 3. Call `get_document_checklist(project_id=<project_id>)` to see which documents are missing for your project.
@@ -67,15 +68,21 @@ the SDAOP protocol version your steering file and `nexus_push.py` were
 generated from. Compare it against `get_sdaop_version()` at session start
 (step 0 above) to detect when the service-side protocol has changed.
 
-## Setup: Download the Push Script
+## Setup: Get the Push Script
 
-Download the push script to your workspace (one-time setup):
+The push script is delivered as part of `generate_instruction_file` — no separate download needed.
 
+When you call `generate_instruction_file`, the response includes a `push_script` field:
+- Write `push_script.content` to `{{PUSH_SCRIPT_PATH}}` in your workspace
+- Replace `{{PROJECT_ID}}` in that file with your actual project_id (from step 1 above)
+
+If the script file already exists and `_sdaop_version` in `.kiro/nexus-state.json` matches
+the current version, no action needed — the existing script is up to date.
+
+**HTTP fallback** (if you need to refresh the script independently):
 ```
 curl -o {{PUSH_SCRIPT_PATH}} {{SERVER_URL}}/api/templates/push-tool.py
 ```
-
-Then open `{{PUSH_SCRIPT_PATH}}` and replace `{{PROJECT_ID}}` with your actual project_id.
 
 ## Update Handling
 

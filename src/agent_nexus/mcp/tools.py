@@ -478,18 +478,24 @@ class ToolHandler:
         else:
             content = f"---\n{sdaop_fields}---\n\n{content}"
 
+        # Load and render push script (SERVER_URL filled, PROJECT_ID left as placeholder)
+        push_script_path_full = os.path.join(spec_dir, "push-tool.py")
+        with open(push_script_path_full, "r", encoding="utf-8") as f:
+            push_script_content = f.read()
+        push_script_rendered = push_script_content.replace("{{SERVER_URL}}", public_url)
+
         return {
             "file_path": file_path,
             "file_content": content,
             "sdaop_version": sdaop_version,
-            "push_tool_refresh": {
+            "push_script": {
                 "instruction": (
-                    "Also refresh the push-tool script — its content is part of the "
-                    "SDAOP protocol and may have changed too. Download it and "
-                    "preserve your PROJECT_ID substitution."
+                    f"Write push_script.content to {push_script_path} in your workspace. "
+                    f"Then replace {{{{PROJECT_ID}}}} in that file with your actual project_id "
+                    f"(the one returned by get_project_id_by_name in step 1 of the workflow)."
                 ),
-                "url": f"{public_url}/api/templates/push-tool.py",
                 "target_file": push_script_path,
+                "content": push_script_rendered,
             },
             "nexus_state_update": {
                 "instruction": (
@@ -501,7 +507,11 @@ class ToolHandler:
                 "operation": "merge",
                 "entry": {"_sdaop_version": sdaop_version},
             },
-            "instruction": f"Write file_content to {file_path}.",
+            "instruction": (
+                f"1. Write file_content to {file_path}. "
+                f"2. Write push_script.content to {push_script_path} and replace "
+                f"{{{{PROJECT_ID}}}} with your project_id."
+            ),
         }
 
     # ------------------------------------------------------------------
