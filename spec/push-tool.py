@@ -98,9 +98,9 @@ def main() -> None:
     if PROJECT_ID == "{{PROJECT_ID}}":
         print("ERROR: Replace {{PROJECT_ID}} with your actual project_id before running.")
         sys.exit(1)
-    if SERVER_URL == "{{SERVER_URL}}" or not SERVER_URL:
-        print("ERROR: SERVER_URL is not filled in. Re-download this script via "
-              "generate_instruction_file or GET /api/templates/push-tool.py.")
+    if not SERVER_URL:
+        print("ERROR: SERVER_URL is not filled in. Re-run generate_instruction_file "
+              "to get a fresh push script with the server URL pre-filled.")
         sys.exit(1)
 
     push_file(args.doc_type, args.file)
