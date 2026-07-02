@@ -399,6 +399,20 @@ async def planner_overview(space_id: str | None = None) -> dict:
 
 
 @mcp.tool()
+async def planner_attribution(
+    space_id: str,
+    project_id: str | None = None,
+    principal: str | None = None,
+) -> dict:
+    """Read-only Principal attribution ("git log --author" of AgentNexus): who (which role) wrote into a boundary, or which boundaries a principal touched. Provide project_id, principal, both, or neither."""
+    handler, session = _get_handler()
+    try:
+        return await handler.planner_attribution(space_id, project_id, principal)
+    finally:
+        session.close()
+
+
+@mcp.tool()
 async def planner_delete_project(project_id: str, space_id: str) -> dict:
     """Delete a sub-project by project_id; owned documents are retained for audit."""
     handler, session = _get_handler()

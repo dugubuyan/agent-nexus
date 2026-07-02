@@ -265,6 +265,7 @@ class DocumentService:
                 version=new_version_num,
                 content_hash=content_hash,
                 actor=req.actor,
+                pushed_principal=req.pushed_principal,
                 status=status,
                 is_milestone=False,
                 milestone_stage=None,
@@ -431,6 +432,7 @@ class DocumentService:
                 pushed_at=v.pushed_at,
                 actor=v.actor,
                 status=v.status,
+                pushed_principal=v.pushed_principal,
             )
             for v in versions
         ]

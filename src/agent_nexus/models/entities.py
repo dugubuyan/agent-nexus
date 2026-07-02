@@ -88,6 +88,7 @@ class DocumentVersion(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False)  # incremental version number
     content_hash: Mapped[str] = mapped_column(String, nullable=False)  # SHA-256 for dedup
     actor: Mapped[str] = mapped_column(String, nullable=False)  # actor label: subproject_id for in-boundary writes, or "agent:<role>" for cross-boundary actors (Planner, etc). See v4-ideas §18.
+    pushed_principal: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # self-attested role ("git author" of the write): who acted. NULL in degenerate single-actor case. See v4-pre §8.
     status: Mapped[str] = mapped_column(String, nullable=False, default="published")  # draft | published
     is_milestone: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     milestone_stage: Mapped[Optional[str]] = mapped_column(String, nullable=True)

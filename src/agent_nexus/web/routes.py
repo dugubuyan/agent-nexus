@@ -356,6 +356,7 @@ def register_web_routes(mcp, get_handler) -> None:
                 project_space_id=subproject.project_space_id,
                 metadata=body.get("metadata", {}),
                 base_version=body.get("base_version"),
+                pushed_principal=body.get("principal"),
             )
             result = handler._c.document_service.push(req)
             session.commit()

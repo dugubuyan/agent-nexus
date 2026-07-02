@@ -503,6 +503,16 @@
 
     .ver-num { font-weight: 700; width: 32px; flex-shrink: 0; }
     .ver-by { color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ver-principal {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: #ede9fe;
+      color: #5b21b6;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
     .ver-status { }
     .ver-select-btn {
       padding: 3px 8px;
@@ -857,7 +867,11 @@ async function loadDocument(docId) {
     statusBadge.className = `doc-badge ${status === 'published' ? 'published' : 'draft'}`;
 
     const actor = result.actor ?? result.meta?.actor ?? '';
-    qs('#doc-author').textContent = actor ? `by: ${actor}` : '';
+    const principal = result.pushed_principal ?? result.meta?.pushed_principal ?? '';
+    const authorParts = [];
+    if (actor) authorParts.push(`actor: ${actor}`);
+    if (principal) authorParts.push(`principal: ${principal}`);
+    qs('#doc-author').textContent = authorParts.length ? authorParts.join('  ·  ') : '';
 
     meta.style.display = 'flex';
 
@@ -900,10 +914,17 @@ qs('#btn-history').addEventListener('click', async () => {
       const row = el('div', { className: 'version-item' });
       const num = el('span', { className: 'ver-num', textContent: `v${v.version}` });
       const by = el('span', { className: 'ver-by', textContent: v.actor || '—' });
+      // Principal pill — only shown if self-attested
+      const principalPill = v.pushed_principal
+        ? el('span', { className: 'ver-principal', textContent: v.pushed_principal })
+        : el('span', { className: 'ver-principal', style: 'visibility:hidden', textContent: '—' });
       const st = el('span', { className: `doc-badge ${v.status === 'published' ? 'published' : 'draft'}`, textContent: v.status || '' });
       const loadBtn = el('button', { className: 'ver-select-btn', textContent: 'Load' });
       loadBtn.addEventListener('click', () => {
         hideModal('versions-modal');
+        loadDocumentVersion(state.currentDocId, v.version);
+      });
+      row.append(num, by, principalPill, st, loadBtn);s-modal');
         loadDocumentVersion(state.currentDocId, v.version);
       });
       row.append(num, by, st, loadBtn);

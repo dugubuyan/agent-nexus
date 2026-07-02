@@ -14,6 +14,7 @@ class PushRequest(BaseModel):
     project_space_id: str
     metadata: dict = {}     # for config type, must contain "stage"
     base_version: int | None = None  # expected server version; None skips check
+    pushed_principal: str | None = None  # self-attested role label ("git author" of the write); who acted. See v4-pre §8. NULL when not attested (degenerate single-actor case).
 
 
 class PushResult(BaseModel):
@@ -36,3 +37,4 @@ class VersionMeta(BaseModel):
     pushed_at: datetime
     actor: str
     status: str
+    pushed_principal: str | None = None  # self-attested role label; None in degenerate single-actor case

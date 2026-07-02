@@ -1091,6 +1091,105 @@ class ToolHandler:
         except AgentNexusError as exc:
             return self._error_dict(exc)
 
+    async def planner_attribution(
+        self,
+        space_id: str,
+        project_id: str | None = None,
+        principal: str | None = None,
+    ) -> dict:
+        """
+        Read-only Principal attribution query — the "git log --author" of AgentNexus.
+
+        Answers the two directions of the (role, boundary) matrix (v4-pre §8):
+          - project_id given → which principals have written into this boundary
+          - principal given  → which boundaries/docs this principal has acted on
+          - neither          → a boundary × principal activity matrix for the space
+
+        principal is self-attested; versions pushed without attestation (the
+        degenerate single-actor case) appear under "(unattested)".
+        """
+        from agent_nexus.models.entities import Document, DocumentVersion
+
+        try:
+            resolved = self._c.planner_service._resolve_space_id(space_id)
+        except AgentNexusError as exc:
+            return self._error_dict(exc)
+
+        q = (
+            self._c.db.query(
+                DocumentVersion.document_id,
+                Document.subproject_id,
+                Document.doc_type,
+                DocumentVersion.version,
+                DocumentVersion.pushed_principal,
+                DocumentVersion.actor,
+                DocumentVersion.status,
+                DocumentVersion.pushed_at,
+            )
+            .join(Document, DocumentVersion.document_id == Document.id)
+            .filter(DocumentVersion.project_space_id == resolved)
+        )
+        if project_id:
+            q = q.filter(Document.subproject_id == project_id)
+        if principal:
+            q = q.filter(DocumentVersion.pushed_principal == principal)
+
+        rows = q.order_by(
+            Document.subproject_id,
+            DocumentVersion.document_id,
+            DocumentVersion.version,
+        ).all()
+
+        UNATTR = "(unattested)"
+        records = [
+            {
+                "doc_id": doc_id,
+                "subproject_id": sub,
+                "doc_type": dtype,
+                "version": ver,
+                "principal": prin or UNATTR,
+                "actor": actor,
+                "status": status,
+                "pushed_at": pushed_at.isoformat() if pushed_at else None,
+            }
+            for (doc_id, sub, dtype, ver, prin, actor, status, pushed_at) in rows
+        ]
+
+        # Direction 1: single boundary → which principals contributed
+        if project_id and not principal:
+            return {
+                "boundary": project_id,
+                "principals": sorted({r["principal"] for r in records}),
+                "attributions": records,
+                "note": (
+                    "actor = owning SubProject of the write; principal = self-attested role who acted. "
+                    "Multiple principals on one boundary = multi-actor collaboration, not multi-owner (v4-pre §8.4)."
+                ),
+            }
+
+        # Direction 2: single principal → which boundaries it acted on
+        if principal and not project_id:
+            return {
+                "principal": principal,
+                "boundaries": sorted({r["subproject_id"] for r in records}),
+                "activity": records,
+            }
+
+        # Both given: filtered list
+        if principal and project_id:
+            return {"boundary": project_id, "principal": principal, "attributions": records}
+
+        # Neither: boundary × principal activity matrix
+        matrix: dict[str, dict[str, int]] = {}
+        for r in records:
+            bucket = matrix.setdefault(r["subproject_id"], {})
+            bucket[r["principal"]] = bucket.get(r["principal"], 0) + 1
+        return {
+            "space_id": resolved,
+            "matrix": matrix,
+            "note": "boundary → {principal: write_count}. The (role, boundary) activity distribution (v4 §18 matrix).",
+        }
+
     async def planner_delete_project(self, project_id: str, space_id: str) -> dict:
         """Delete a sub-project. space_id may be UUID or name. Documents retained."""
         try:
