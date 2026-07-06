@@ -37,7 +37,13 @@ def read_base_version(doc_id: str) -> int | None:
     return entry.get("local_version")
 
 
-def push_document(doc_id: str, content: str, base_version: int | None = None, metadata: dict | None = None) -> dict:
+def push_document(
+    doc_id: str,
+    content: str,
+    base_version: int | None = None,
+    metadata: dict | None = None,
+    principal: str | None = None,
+) -> dict:
     """Push a document to AgentNexus via the REST endpoint."""
     payload: dict = {
         "project_id": PROJECT_ID,
@@ -48,6 +54,8 @@ def push_document(doc_id: str, content: str, base_version: int | None = None, me
         payload["base_version"] = base_version
     if metadata:
         payload["metadata"] = metadata
+    if principal:
+        payload["principal"] = principal
 
     resp = requests.post(
         f"{SERVER_URL}/api/documents",
@@ -77,15 +85,16 @@ def update_state(doc_id: str, version: int, doc_type: str) -> None:
     print(f"Updated {STATE_FILE}")
 
 
-def push_file(doc_type: str, file_path: str) -> None:
+def push_file(doc_type: str, file_path: str, principal: str | None = None) -> None:
     """Read a local Markdown file and push it as a document."""
     doc_id = f"{PROJECT_ID}/{doc_type}"
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
 
     base_version = read_base_version(doc_id)
-    result = push_document(doc_id, content, base_version=base_version)
-    print(f"Pushed {doc_id} → version {result['version']} ({result['status']})")
+    result = push_document(doc_id, content, base_version=base_version, principal=principal)
+    label = f" (principal={principal})" if principal else ""
+    print(f"Pushed {doc_id} → version {result['version']} ({result['status']}){label}")
     update_state(doc_id, result["version"], doc_type)
 
 
@@ -93,6 +102,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Push a document to AgentNexus")
     parser.add_argument("doc_type", help="Document type, e.g. requirement, design, api")
     parser.add_argument("file", help="Path to the Markdown file to push")
+    parser.add_argument(
+        "--principal",
+        default=None,
+        metavar="ROLE",
+        help=(
+            "Self-attested role label for this write, e.g. 'infra:ops' or 'ai-server:developer'. "
+            "Optional — omit in single-actor cases. Stored as pushed_principal on the version "
+            "and queryable via planner_attribution. See v4-pre §8 (git-author model)."
+        ),
+    )
     args = parser.parse_args()
 
     if PROJECT_ID == "{{PROJECT_ID}}":
@@ -103,7 +122,7 @@ def main() -> None:
               "to get a fresh push script with the server URL pre-filled.")
         sys.exit(1)
 
-    push_file(args.doc_type, args.file)
+    push_file(args.doc_type, args.file, principal=args.principal)
 
 
 if __name__ == "__main__":
