@@ -11,6 +11,9 @@ import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
+from agent_nexus.analyzer import AnalyzerService
+from agent_nexus.analyzer.llm_analyzer import LLMAnalyzer
+from agent_nexus.analyzer.rule_engine import RuleEngineAnalyzer
 from agent_nexus.planner.llm_client import make_llm_client
 from agent_nexus.planner.planner_service import PlannerService
 from agent_nexus.services.audit_log_service import AuditLogService
@@ -51,15 +54,23 @@ class ServiceContainer:
         self.subscription_service = SubscriptionService(db_session)
         self.notification_service = NotificationService(db_session)
         self.task_service = TaskService(db_session)
+        llm_client = make_llm_client()
+        rule_engine = RuleEngineAnalyzer()
+        llm_analyzer = LLMAnalyzer()
+        self.analyzer_service = AnalyzerService(
+            analyzer=llm_analyzer,
+            fallback=rule_engine,
+            audit_log_service=self.audit_log_service,
+        )
         self.document_service = DocumentService(
             db=db_session,
             docs_root=docs_root,
             audit_log_service=self.audit_log_service,
+            analyzer_service=self.analyzer_service,
             subscription_service=self.subscription_service,
             notification_service=self.notification_service,
             task_service=self.task_service,
         )
-        llm_client = make_llm_client()
         self.planner_service = PlannerService(
             container=self,
             llm_client=llm_client,
