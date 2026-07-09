@@ -99,6 +99,9 @@ paper/_tmp_v3.md
 paper/agentnexus-v3.pdf
 paper/build_pdf.py
 paper/header.tex
+paper/agentnexus-v4-ch.md
+paper/agentnexus-v4.pdf
+paper/_figures/
 mermaid-filter.err
 
 # Node (if any frontend tooling ends up here)
