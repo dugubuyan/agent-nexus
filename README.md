@@ -13,11 +13,6 @@ Let a backend agent, a frontend agent, and an infra agent — running on *differ
 > An MCP server that coordinates AI code agents across service boundaries.
 > *(Not affiliated with the MIT Lincoln Laboratory project of the same name.)*
 
-<!-- TODO: drop a 20–30s demo GIF here. Suggested shot: a backend agent (Claude Code)
-     publishes a new API spec, and a frontend agent (Cursor) is auto-notified with a
-     diff and applies the change — two different tools, one coordination layer. -->
-<p align="center"><em>[ demo GIF goes here — see TODO above ]</em></p>
-
 ---
 
 ## The problem
@@ -72,17 +67,33 @@ Supported clients: `kiro`, `claude`, `codex`, `cursor`.
 ## Quick Start
 
 ```bash
-# Install
-pip install -e ".[dev]"
+# 1. Install
+pip install -e .
 
-# Configure environment (copy example and fill in values)
-cp .env.example .env
+# 2. Start the server — auto-creates the database on first run
+#    (default: http://0.0.0.0:10086/mcp, dashboard at http://0.0.0.0:10086/)
+python -m agent_nexus.main
+```
 
-# Initialize database
-python -m alembic upgrade head
+That's it — no separate DB migration or `.env` needed to get started. Everything
+has sane defaults; copy `.env.example` to `.env` only when you want to change the
+port, point at Postgres, or enable the Planner LLM.
 
-# Start server (default: http://0.0.0.0:10086/mcp)
-python src/main.py
+### Run with Docker
+
+```bash
+docker build -t agent-nexus .
+docker run -p 10086:10086 agent-nexus
+```
+
+To persist documents and the database across restarts, mount volumes:
+
+```bash
+docker run -p 10086:10086 \
+  -v "$(pwd)/workspace:/app/workspace" \
+  -v "$(pwd)/data:/app/data" \
+  -e AGENT_NEXUS_DB_URL=sqlite:////app/data/agent_nexus.db \
+  agent-nexus
 ```
 
 Connect from Kiro / any MCP client:
