@@ -561,7 +561,7 @@ def test_prop_version_retention_invariants(
     import uuid
     from datetime import timedelta
 
-    from agent_nexus.models.entities import Document, DocumentVersion, DocumentVersionContent
+    from agent_nexus.models.entities import Document, DocumentVersion, Blob
     from agent_nexus.services.version_retention_service import VersionRetentionService
 
     engine = _make_engine()
@@ -615,12 +615,13 @@ def test_prop_version_retention_invariants(
                 )
                 session.add(ver)
                 session.flush()
-                content = DocumentVersionContent(
-                    version_id=ver_id,
+                blob = Blob(
                     project_space_id=space_id,
+                    content_hash=ver.content_hash,
                     content=f"Old content version {ver_num}",
+                    created_at=old_cutoff,
                 )
-                session.add(content)
+                session.merge(blob)
                 version_ids.append(ver_id)
 
             # Create recent versions (indices extra_old_count..total_versions-1)
@@ -643,12 +644,13 @@ def test_prop_version_retention_invariants(
                 )
                 session.add(ver)
                 session.flush()
-                content = DocumentVersionContent(
-                    version_id=ver_id,
+                blob = Blob(
                     project_space_id=space_id,
+                    content_hash=ver.content_hash,
                     content=f"Recent content version {ver_num}",
+                    created_at=now - timedelta(days=1),
                 )
-                session.add(content)
+                session.merge(blob)
                 version_ids.append(ver_id)
 
             session.flush()
@@ -662,14 +664,24 @@ def test_prop_version_retention_invariants(
             svc.run_cleanup(project_space_id=space_id)
             session.flush()
 
-            # Helper: check if a version has content
+            # Helper: check if a version has content (blob resolvable via its hash)
             def has_content(ver_id: str) -> bool:
-                c = (
-                    session.query(DocumentVersionContent)
-                    .filter(DocumentVersionContent.version_id == ver_id)
+                ver = (
+                    session.query(DocumentVersion)
+                    .filter(DocumentVersion.id == ver_id)
                     .first()
                 )
-                return c is not None
+                if ver is None:
+                    return False
+                blob = (
+                    session.query(Blob)
+                    .filter(
+                        Blob.project_space_id == ver.project_space_id,
+                        Blob.content_hash == ver.content_hash,
+                    )
+                    .first()
+                )
+                return blob is not None
 
             def get_version(ver_num: int) -> DocumentVersion:
                 return (

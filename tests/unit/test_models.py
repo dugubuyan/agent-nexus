@@ -19,7 +19,7 @@ from agent_nexus.models import (
     Base,
     Document,
     DocumentVersion,
-    DocumentVersionContent,
+    Blob,
     Notification,
     ProjectSpace,
     SubProject,
@@ -33,7 +33,7 @@ EXPECTED_TABLES = {
     "subprojects",
     "documents",
     "document_versions",
-    "document_version_contents",
+    "blobs",
     "subscriptions",
     "notifications",
     "tasks",
@@ -121,19 +121,22 @@ def test_create_document_and_version(db_session: Session, default_space: Project
     db_session.add(version)
     db_session.flush()
 
-    content = DocumentVersionContent(
-        version_id=version.id,
+    blob = Blob(
         project_space_id=default_space.id,
+        content_hash="abc123",
         content="# Requirements\n\nSome content here.",
+        created_at=datetime.now(timezone.utc),
     )
-    db_session.add(content)
+    db_session.add(blob)
     db_session.flush()
 
     fetched_doc = db_session.get(Document, doc.id)
     assert fetched_doc is not None
     assert fetched_doc.latest_version == 1
     assert len(fetched_doc.versions) == 1
-    assert fetched_doc.versions[0].content.content == "# Requirements\n\nSome content here."
+    fetched_blob = db_session.get(Blob, (default_space.id, "abc123"))
+    assert fetched_blob is not None
+    assert fetched_blob.content == "# Requirements\n\nSome content here."
 
 
 def test_create_subscription(db_session: Session, default_space: ProjectSpace):

@@ -21,7 +21,8 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from agent_nexus.models.entities import Document, DocumentVersion, DocumentVersionContent
+from agent_nexus.models.entities import Document, DocumentVersion
+from agent_nexus.services import blob_store
 
 
 class VersionRetentionService:
@@ -128,15 +129,13 @@ class VersionRetentionService:
     def _archive_version(self, version: DocumentVersion) -> None:
         """
         Archive a version:
-          1. Delete its content from document_version_contents.
-          2. Mark document_versions.status = "archived".
+          1. Mark document_versions.status = "archived" (preserve metadata).
+          2. Reclaim its blob — but only if no other live version shares the
+             same content (Git-GC reachability: a blob may be referenced by
+             several versions, e.g. a milestone snapshot of identical content).
         """
-        content = (
-            self._db.query(DocumentVersionContent)
-            .filter(DocumentVersionContent.version_id == version.id)
-            .first()
-        )
-        if content is not None:
-            self._db.delete(content)
-
         version.status = "archived"
+        self._db.flush()  # so the reference check sees this version as archived
+        blob_store.delete_blob_if_unreferenced(
+            self._db, version.project_space_id, version.content_hash
+        )

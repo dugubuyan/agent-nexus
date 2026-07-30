@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Session
 
-from agent_nexus.models.entities import Document, DocumentVersion, DocumentVersionContent, SubProject
+from agent_nexus.models.entities import Document, DocumentVersion, SubProject
+from agent_nexus.services import blob_store
 from agent_nexus.services.audit_log_service import AuditLogService
 from agent_nexus.services.errors import AgentNexusError
 from agent_nexus.services.schemas import (
@@ -274,12 +275,11 @@ class DocumentService:
             )
             self._db.add(doc_version)
 
-            doc_content = DocumentVersionContent(
-                version_id=version_id,
-                project_space_id=req.project_space_id,
-                content=req.content,
+            # Store content in the content-addressed blob store. Identical
+            # content (same hash) is shared, not re-copied.
+            blob_store.put_blob(
+                self._db, req.project_space_id, content_hash, req.content
             )
-            self._db.add(doc_content)
 
             document.latest_version = new_version_num
             self._db.flush()
@@ -378,12 +378,7 @@ class DocumentService:
                 details={"doc_id": doc_id, "version": target_version},
             )
 
-        content_record = (
-            self._db.query(DocumentVersionContent)
-            .filter(DocumentVersionContent.version_id == doc_version.id)
-            .first()
-        )
-        content = content_record.content if content_record else ""
+        content = blob_store.content_for_version(self._db, doc_version) or ""
 
         return DocumentResult(
             doc_id=doc_id,
@@ -594,11 +589,7 @@ class DocumentService:
         self._db.flush()
 
         # Update FTS index now that the draft is published (Req 1.3)
-        content_rec = (
-            self._db.query(DocumentVersionContent)
-            .filter(DocumentVersionContent.version_id == doc_version.id)
-            .first()
-        )
+        content_text = blob_store.content_for_version(self._db, doc_version)
         document_for_fts = (
             self._db.query(Document)
             .filter(
@@ -607,7 +598,7 @@ class DocumentService:
             )
             .first()
         )
-        if content_rec is not None and document_for_fts is not None:
+        if content_text is not None and document_for_fts is not None:
             from agent_nexus.search.fts import upsert_doc
             upsert_doc(
                 db=self._db,
@@ -615,7 +606,7 @@ class DocumentService:
                 project_space_id=project_space_id,
                 subproject_id=document_for_fts.subproject_id,
                 doc_type=document_for_fts.doc_type,
-                content=content_rec.content,
+                content=content_text,
             )
 
         # Trigger notification + task pipeline (Req 11.3)
@@ -697,13 +688,6 @@ class DocumentService:
                 skipped += 1
                 continue
 
-            # Copy content from source version
-            source_content = (
-                self._db.query(DocumentVersionContent)
-                .filter(DocumentVersionContent.version_id == published_version.id)
-                .first()
-            )
-
             new_version_num = document.latest_version + 1
             new_version_id = str(uuid.uuid4())
 
@@ -722,14 +706,9 @@ class DocumentService:
             )
             self._db.add(snapshot)
 
-            if source_content is not None:
-                snapshot_content = DocumentVersionContent(
-                    version_id=new_version_id,
-                    project_space_id=project_space_id,
-                    content=source_content.content,
-                )
-                self._db.add(snapshot_content)
-
+            # Content is addressed by hash: the snapshot shares the source
+            # version's blob (identical content_hash), so no content copy is
+            # made. put_blob is a defensive no-op — the blob already exists.
             document.latest_version = new_version_num
             snapshots_created += 1
 

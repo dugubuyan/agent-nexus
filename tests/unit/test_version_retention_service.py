@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy.orm import Session
 
-from agent_nexus.models.entities import Document, DocumentVersion, DocumentVersionContent
+from agent_nexus.models.entities import Document, DocumentVersion, Blob
 from agent_nexus.services.version_retention_service import VersionRetentionService
 
 
@@ -60,12 +60,13 @@ def _make_version(
     db.flush()
 
     if with_content:
-        content = DocumentVersionContent(
-            version_id=ver.id,
+        blob = Blob(
             project_space_id=document.project_space_id,
+            content_hash=ver.content_hash,
             content=f"Content for version {version_num}",
+            created_at=pushed_at,
         )
-        db.add(content)
+        db.merge(blob)
         db.flush()
 
     return ver
@@ -144,8 +145,11 @@ class TestArchiveVersion:
 
         # Confirm content exists before archival
         content_before = (
-            db_session.query(DocumentVersionContent)
-            .filter(DocumentVersionContent.version_id == ver.id)
+            db_session.query(Blob)
+            .filter(
+                Blob.project_space_id == doc.project_space_id,
+                Blob.content_hash == ver.content_hash,
+            )
             .first()
         )
         assert content_before is not None
@@ -153,9 +157,13 @@ class TestArchiveVersion:
         svc._archive_version(ver)
         db_session.flush()
 
+        # Blob is reclaimed because no live version still references it.
         content_after = (
-            db_session.query(DocumentVersionContent)
-            .filter(DocumentVersionContent.version_id == ver.id)
+            db_session.query(Blob)
+            .filter(
+                Blob.project_space_id == doc.project_space_id,
+                Blob.content_hash == ver.content_hash,
+            )
             .first()
         )
         assert content_after is None

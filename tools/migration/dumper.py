@@ -39,11 +39,11 @@ from sqlalchemy.orm import Session
 from agent_nexus.models.entities import (
     Document,
     DocumentVersion,
-    DocumentVersionContent,
     ProjectSpace,
     SubProject,
     Subscription,
 )
+from agent_nexus.services import blob_store
 
 
 # ---------------------------------------------------------------------------
@@ -199,13 +199,8 @@ def dump_space(
 
         versions: list[DocumentVersion] = version_query.all()
         for ver in versions:
-            # 1. Try DB content row
-            content_row: DocumentVersionContent | None = (
-                db.query(DocumentVersionContent)
-                .filter(DocumentVersionContent.version_id == ver.id)
-                .first()
-            )
-            content: str | None = content_row.content if content_row else None
+            # 1. Try content-addressed blob store
+            content: str | None = blob_store.content_for_version(db, ver)
 
             # 2. Filesystem fallback (latest version only)
             if not content and ver.version == doc.latest_version:

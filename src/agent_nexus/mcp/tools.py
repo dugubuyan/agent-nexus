@@ -266,7 +266,8 @@ class ToolHandler:
         try:
             subproject = self._validate_project(project_id)
 
-            from agent_nexus.models.entities import Document, DocumentVersion, DocumentVersionContent
+            from agent_nexus.models.entities import Document, DocumentVersion
+            from agent_nexus.services import blob_store
 
             # Fetch all existing documents for this project
             existing_docs = (
@@ -304,13 +305,9 @@ class ToolHandler:
                         .first()
                     )
                     if ver:
-                        content_rec = (
-                            self._c.db.query(DocumentVersionContent)
-                            .filter(DocumentVersionContent.version_id == ver.id)
-                            .first()
-                        )
+                        content_rec = blob_store.content_for_version(self._c.db, ver)
                         if content_rec:
-                            custom_checklist_content = content_rec.content
+                            custom_checklist_content = content_rec
 
             # Determine rules: custom or built-in
             if custom_checklist_content:
@@ -761,7 +758,8 @@ class ToolHandler:
             if not notifications:
                 return []
 
-            from agent_nexus.models.entities import Document, DocumentVersion, DocumentVersionContent
+            from agent_nexus.models.entities import Document, DocumentVersion
+            from agent_nexus.services import blob_store
             import difflib
 
             results = []
@@ -792,12 +790,8 @@ class ToolHandler:
                     .first()
                 )
                 if latest_ver:
-                    content_rec = (
-                        self._c.db.query(DocumentVersionContent)
-                        .filter(DocumentVersionContent.version_id == latest_ver.id)
-                        .first()
-                    )
-                    item["latest_content"] = content_rec.content if content_rec else ""
+                    latest_content = blob_store.content_for_version(self._c.db, latest_ver)
+                    item["latest_content"] = latest_content if latest_content is not None else ""
 
                 # Get previous version content for diff
                 if n.version > 1:
@@ -810,13 +804,9 @@ class ToolHandler:
                         .first()
                     )
                     if prev_ver:
-                        prev_content_rec = (
-                            self._c.db.query(DocumentVersionContent)
-                            .filter(DocumentVersionContent.version_id == prev_ver.id)
-                            .first()
-                        )
-                        if prev_content_rec and item["latest_content"]:
-                            old_lines = prev_content_rec.content.splitlines(keepends=True)
+                        prev_content = blob_store.content_for_version(self._c.db, prev_ver)
+                        if prev_content and item["latest_content"]:
+                            old_lines = prev_content.splitlines(keepends=True)
                             new_lines = item["latest_content"].splitlines(keepends=True)
                             diff_lines = list(difflib.unified_diff(
                                 old_lines, new_lines,

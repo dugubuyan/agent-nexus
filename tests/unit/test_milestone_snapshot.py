@@ -14,7 +14,7 @@ from agent_nexus.models.entities import (
     AuditLog,
     Document,
     DocumentVersion,
-    DocumentVersionContent,
+    Blob,
     Task,
 )
 from agent_nexus.services.audit_log_service import AuditLogService
@@ -75,12 +75,13 @@ def _add_document_with_published_version(
     )
     db_session.add(ver)
 
-    content = DocumentVersionContent(
-        version_id=ver_id,
+    blob = Blob(
         project_space_id=space_id,
+        content_hash="abc123",
         content="# Hello\nThis is the document content.",
+        created_at=now,
     )
-    db_session.add(content)
+    db_session.merge(blob)
     db_session.flush()
     return doc, ver
 
@@ -263,18 +264,25 @@ def test_snapshot_content_matches_source_published_version(db_session, default_s
     )
     assert snapshot.content_hash == source_ver.content_hash
 
-    snapshot_content = (
-        db_session.query(DocumentVersionContent)
-        .filter(DocumentVersionContent.version_id == snapshot.id)
-        .first()
-    )
-    source_content = (
-        db_session.query(DocumentVersionContent)
-        .filter(DocumentVersionContent.version_id == source_ver.id)
-        .first()
-    )
+    # Content is addressed by hash: the snapshot shares the source version's
+    # blob rather than storing a second copy. Both resolve to identical content.
+    from agent_nexus.services import blob_store
+
+    snapshot_content = blob_store.content_for_version(db_session, snapshot)
+    source_content = blob_store.content_for_version(db_session, source_ver)
     assert snapshot_content is not None
-    assert snapshot_content.content == source_content.content
+    assert snapshot_content == source_content
+
+    # And there is exactly one blob for that hash (no duplicate copy).
+    blob_count = (
+        db_session.query(Blob)
+        .filter(
+            Blob.project_space_id == default_space.id,
+            Blob.content_hash == source_ver.content_hash,
+        )
+        .count()
+    )
+    assert blob_count == 1
 
 
 def test_snapshot_mixed_published_and_draft(db_session, default_space, tmp_docs_root):

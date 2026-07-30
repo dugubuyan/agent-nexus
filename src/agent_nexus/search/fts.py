@@ -85,8 +85,9 @@ def rebuild_fts_index_if_empty(engine) -> None:
                 AND dv.project_space_id = d.project_space_id
                 AND dv.version = d.latest_version
                 AND dv.status = 'published'
-            JOIN document_version_contents dvc
-                ON dvc.version_id = dv.id
+            JOIN blobs dvc
+                ON dvc.project_space_id = dv.project_space_id
+                AND dvc.content_hash = dv.content_hash
         """)).fetchall()
 
         for row in rows:

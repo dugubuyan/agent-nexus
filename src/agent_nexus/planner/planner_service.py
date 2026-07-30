@@ -416,7 +416,7 @@ class PlannerService:
         Otherwise load up to ``_CHAT_MAX_DOCS`` most recently pushed documents
         in the space (latest published version preferred).
         """
-        from agent_nexus.models.entities import DocumentVersionContent
+        from agent_nexus.models.entities import Blob
 
         results: list[dict[str, Any]] = []
 
@@ -453,7 +453,7 @@ class PlannerService:
             # Load up to _CHAT_MAX_DOCS most recently pushed docs in the space
             # We join DocumentVersion to sort by pushed_at desc
             rows = (
-                self._c.db.query(Document, DocumentVersion, DocumentVersionContent)
+                self._c.db.query(Document, DocumentVersion, Blob)
                 .join(
                     DocumentVersion,
                     (DocumentVersion.document_id == Document.id)
@@ -461,19 +461,20 @@ class PlannerService:
                     & (DocumentVersion.project_space_id == space_id),
                 )
                 .join(
-                    DocumentVersionContent,
-                    DocumentVersionContent.version_id == DocumentVersion.id,
+                    Blob,
+                    (Blob.content_hash == DocumentVersion.content_hash)
+                    & (Blob.project_space_id == DocumentVersion.project_space_id),
                 )
                 .filter(Document.project_space_id == space_id)
                 .order_by(DocumentVersion.pushed_at.desc())
                 .limit(_CHAT_MAX_DOCS)
                 .all()
             )
-            for doc_row, ver_row, content_row in rows:
+            for doc_row, ver_row, blob_row in rows:
                 results.append(
                     {
                         "doc_id": doc_row.id,
-                        "content": content_row.content,
+                        "content": blob_row.content,
                         "doc_type": doc_row.doc_type,
                     }
                 )

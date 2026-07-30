@@ -10,6 +10,7 @@ Covers:
   - DocumentService integration: push_document and publish_draft
 """
 
+import hashlib
 import uuid
 from datetime import datetime, timezone
 
@@ -21,7 +22,7 @@ from agent_nexus.models import Base
 from agent_nexus.models.entities import (
     Document,
     DocumentVersion,
-    DocumentVersionContent,
+    Blob,
     ProjectSpace,
     SubProject,
 )
@@ -130,12 +131,13 @@ def _insert_published_doc(session, space_id, subproject_id, doc_type, content, d
     session.flush()
 
     ver_id = str(uuid.uuid4())
+    content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
     ver = DocumentVersion(
         id=ver_id,
         document_id=doc_id,
         project_space_id=space_id,
         version=1,
-        content_hash="abc",
+        content_hash=content_hash,
         actor="test",
         status="published",
         is_milestone=False,
@@ -144,12 +146,13 @@ def _insert_published_doc(session, space_id, subproject_id, doc_type, content, d
     )
     session.add(ver)
 
-    content_rec = DocumentVersionContent(
-        version_id=ver_id,
+    blob = Blob(
         project_space_id=space_id,
+        content_hash=content_hash,
         content=content,
+        created_at=now,
     )
-    session.add(content_rec)
+    session.merge(blob)
     session.flush()
 
     return doc

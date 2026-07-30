@@ -97,26 +97,31 @@ class DocumentVersion(Base):
 
     # Relationships
     document: Mapped["Document"] = relationship(back_populates="versions")
-    content: Mapped[Optional["DocumentVersionContent"]] = relationship(
-        back_populates="version_obj", uselist=False
-    )
 
 
-class DocumentVersionContent(Base):
-    """Stores the actual Markdown content for a document version (Requirement 3.3)."""
+class Blob(Base):
+    """Content-addressed storage for document version content.
 
-    __tablename__ = "document_version_contents"
+    Content is stored once per unique (project_space_id, content_hash) pair,
+    mirroring Git's blob model: identical content — across versions, milestone
+    snapshots, or documents within a space — is stored a single time and shared
+    by every DocumentVersion whose content_hash matches. A DocumentVersion
+    already carries content_hash, so it references its content by hash rather
+    than embedding a full copy (Requirement 3.3).
 
-    version_id: Mapped[str] = mapped_column(
-        String, ForeignKey("document_versions.id"), primary_key=True
-    )
+    Scoped per project_space_id to preserve multi-tenant isolation; dedup is
+    within a space, which is where version history and milestone snapshots
+    repeat content.
+    """
+
+    __tablename__ = "blobs"
+
     project_space_id: Mapped[str] = mapped_column(
-        String, ForeignKey("project_spaces.id"), nullable=False
+        String, ForeignKey("project_spaces.id"), primary_key=True
     )
+    content_hash: Mapped[str] = mapped_column(String, primary_key=True)  # SHA-256 of content
     content: Mapped[str] = mapped_column(Text, nullable=False)  # Markdown content
-
-    # Relationships
-    version_obj: Mapped["DocumentVersion"] = relationship(back_populates="content")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
 
 class Subscription(Base):
